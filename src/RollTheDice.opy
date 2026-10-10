@@ -37,7 +37,7 @@ variables
 		32: durationModifier
 		33: showHeroIconEsp
 		34: showPerkEsp
-		35: consecutiveDiceRoll
+		35: diceReroll
 		36: rtdWorldText
 		37: hudLoopIndex
 		38: favouriteChanceRoll
@@ -676,10 +676,10 @@ rule("Roll The Dice")
 		disabled Wait Until(Is Alive(Event Player), 99999);
 		Play Effect(Event Player, Buff Explosion Sound, Color(White), Position Of(Event Player), 200);
 		Event Player.perkActivated = True;
-		If(Event Player.consecutiveDiceRoll != 0);
-			"Consecutive Dice Roll"
+		If(Event Player.diceReroll != 0);
+			"Dice Reroll"
 			If(Random Integer(0, 1) == 0);
-				Event Player.diceRoll = Event Player.consecutiveDiceRoll;
+				Event Player.diceRoll = Event Player.diceReroll;
 				Small Message(Event Player, Custom String("You rerolled your perk."));
 				If(Current Game Mode == Game Mode(Deathmatch));
 					Small Message(Event Player, Custom String("{0}{1} rolled {2}", Hero Icon String(Hero Of(Event Player)), Event Player,
@@ -692,10 +692,10 @@ rule("Roll The Dice")
 					Small Message(All Players(Opposite Team Of(Team Of(Event Player))), Custom String("{0}{1} rolled a perk.", Hero Icon String(
 						Hero Of(Event Player)), Event Player, Event Player.perkName));
 				End;
-				Event Player.consecutiveDiceRoll = 0;
+				Event Player.diceReroll = 0;
 				Abort;
 			End;
-			Event Player.consecutiveDiceRoll = 0;
+			Event Player.diceReroll = 0;
 		End;
 		"If the player has a favourite perk selected, roll the favourite chance"
 		If(Event Player.favouritePerkRoll != 0);
@@ -5173,7 +5173,7 @@ rule("102: Sorcerer's Jackpot")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 254;
 		"Fever Begin"
-		Event Player.consecutiveDiceRoll = 102;
+		disabled Event Player.diceReroll = 102;
 		Set Move Speed(Event Player, 275);
 		Set Damage Received(Event Player, 70);
 		Set Damage Dealt(Event Player, 140);
@@ -6467,8 +6467,8 @@ rule("123: Black Flash Melee")
 	actions
 	{
 		Abort If(Event Player.isSelectingFavourite == True);
-		If(Random Integer(1, Event Player.consecutiveDiceRoll == 123 ? 2 : 3) == 1);
-			Event Player.consecutiveDiceRoll = 123;
+		If(Random Integer(1, Event Player.diceReroll == 123 ? 2 : 3) == 1);
+			Event Player.diceReroll = 123;
 			disabled Event Player.H = True;
 			Destroy Effect(Event Player.G);
 			Play Effect(All Players(All Teams), Bad Explosion, Color(Red), Position Of(Victim), 15);
@@ -6738,7 +6738,7 @@ rule("126: Double Duration")
 		Event Player.perkName = Custom String("Double Duration");
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 1;
-		Event Player.consecutiveDiceRoll = 126;
+		Event Player.diceReroll = 126;
 		All Players(All Teams).durationModifier *= 2;
 		Big Message(All Players(All Teams), Custom String("{0} {1} doubled all perk durations!", Hero Icon String(Hero Of(Event Player)),
 			Event Player));
@@ -6768,7 +6768,7 @@ rule("127: Halved Duration")
 		Event Player.perkName = Custom String("Halved Duration");
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 1;
-		Event Player.consecutiveDiceRoll = 127;
+		Event Player.diceReroll = 127;
 		All Players(All Teams).durationModifier /= 2;
 		Big Message(All Players(All Teams), Custom String("{0} {1} halved all perk durations!", Hero Icon String(Hero Of(Event Player)),
 			Event Player));
@@ -6977,9 +6977,7 @@ rule("133: Skill Check")
 					Set Ability Cooldown(Event Player, Button(Ability 1), 0);
 					Set Ability Cooldown(Event Player, Button(Ability 2), 0);
 					Start Heal Over Time(Event Player, Event Player, 1, 75);
-					Event Player.consecutiveDiceRoll = 133;
-					Wait Until(Event Player.diceCooldown > 0, 5);
-					Event Player.diceCooldown = 1;
+					Event Player.diceReroll = 133;
 				Else;
 					Event Player.J = 2;
 					Event Player.I = 100;
@@ -7005,11 +7003,17 @@ rule("133: Skill Check")
 			Set Ability Cooldown(Event Player, Button(Ability 2), Ability Cooldown(Event Player, Button(Ability 2)) + 5);
 			Damage(Event Player, Null, 75);
 		End;
+		"End Skill Check"
 		Event Player.perkDuration = 0;
 		Event Player.perkActivated = False;
 		Event Player.G = 0;
 		Event Player.H = 0;
 		Event Player.I = 0;
+		"Successful Skill Check Cooldown"
+		If(Event Player.J == 1);
+			Wait Until(Event Player.diceCooldown > 0, 5);
+			Event Player.diceCooldown = 1;
+		End;
 		Event Player.J = 0;
 	}
 }
