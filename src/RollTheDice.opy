@@ -449,7 +449,7 @@ rule("AD TEXT")
 			Visible To Sort Order String and Color, Default Visibility);
 		Create HUD Text(All Players(All Teams), Null, Null, Custom String("CURRENT VERSION"), Left, 5, Null, Null, Color(White),
 			Visible To Sort Order String and Color, Default Visibility);
-		Create HUD Text(All Players(All Teams), Null, Null, Custom String("V2.2.6"), Left, 6, Null, Null, Color(Aqua),
+		Create HUD Text(All Players(All Teams), Null, Null, Custom String("V2.2.7"), Left, 6, Null, Null, Color(Aqua),
 			Visible To Sort Order String and Color, Default Visibility);
 		disabled Create HUD Text(All Players(All Teams), Null, Null, Custom String("CURRENT EXPERIMENT"), Left, 6, Null, Null, Color(White),
 			Visible To Sort Order String and Color, Default Visibility);
@@ -1276,7 +1276,7 @@ rule("17: Blind")
 		Event Player.perkColour = Color(Black);
 		Event Player.perkName = Custom String("Blind");
 		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.perkDuration = 10;
+		Event Player.perkDuration = 5;
 		Start Camera(Event Player, Vector(-10000, -10000, -10000), Vector(-10000, -10000, -10000), 0);
 		Set Damage Dealt(Event Player, 250);
 		Wait Until(Event Player.perkActivated == False, 999999);
@@ -2063,12 +2063,14 @@ rule("37: Beat Drop")
 			Hacked) || Has Status(Event Player, Asleep), 5);
 		If((Is Dead(Event Player) || Has Status(Event Player, Hacked) || Has Status(Event Player, Asleep) || Has Status(Event Player,
 			Stunned)) == True);
+			Set Ultimate Charge(Event Player, 0);
 			Event Player.G = 0;
 			Event Player.perkDuration = 0;
 			Event Player.perkActivated = False;
+			Wait Until(Event Player.diceCooldown >= 1, 99999);
+			Event Player.diceCooldown += 10;
 			Abort;
 		End;
-		Play Effect(Event Player, Doomfist Meteor Strike Impact Sound, Color(White), Position Of(Event Player), 200);
 		Add Health Pool To Player(Event Player, Health, 750, False, True);
 		Start Damage Over Time(Event Player, Null, 30, 125);
 		disabled Wait(1, Ignore Condition);
@@ -2339,7 +2341,7 @@ rule("43: Auto Dodge")
 		Event Player.G = Last Created Entity;
 		Start Forcing Player Outlines(Event Player, All Players(All Teams), True, Color(White), Always);
 		Set Damage Dealt(Event Player, 100);
-		Set Move Speed(Event Player, 100);
+		Set Move Speed(Event Player, 130);
 		Set Damage Received(Event Player, 100);
 		Play Effect(All Players(All Teams), Ring Explosion, Color(White), Eye Position(Event Player), 5);
 		Play Effect(All Players(All Teams), Bad Explosion, Color(White), Eye Position(Event Player), 5);
@@ -2374,6 +2376,10 @@ rule("43: Auto Dodge Dodge")
 	actions
 	{
 		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration -= 3;
+		If(Event Player.perkDuration < 0);
+			Event Player.perkDuration = 0;
+		End;
 		Heal(Event Player, Null, Event Damage);
 		disabled Start Heal Over Time(Event Player, Event Player, 1, Event Damage * 1);
 		Clear Status(Event Player, Hacked);
@@ -2384,19 +2390,85 @@ rule("43: Auto Dodge Dodge")
 		Clear Status(Event Player, Rooted);
 		Clear Status(Event Player, Stunned);
 		Stop All Damage Over Time(Event Player);
-		disabled Start Damage Over Time(Attacker, Event Player, 2, Event Damage / 2);
-		disabled Set Status(Event Player, Event Player, Phased Out, 0.250);
+		Set Status(Event Player, Event Player, Phased Out, 0.250);
 		Play Effect(All Players(All Teams), Bad Explosion, Color(White), Event Player, 5);
 		Play Effect(Array(Event Player, Attacker), Ring Explosion Sound, Color(White), Position Of(Event Player), 200);
-		Teleport(Event Player, World Vector Of(Vector(Random Integer(0, 1) == 1 ? -1 : 1, 0, 0), Event Player, Rotation And Translation));
-		disabled Teleport(Event Player, Ray Cast Hit Position(Position Of(Attacker), Position Of(Attacker) + Direction From Angles(
+		"Dodge Move"
+		disabled Event Player.H = 0;
+		disabled Event Player.H = Ray Cast Hit Position(Position Of(Player Closest To Reticle(Event Player, All Teams)), Position Of(
+			Player Closest To Reticle(Event Player, All Teams)) + Direction From Angles(Horizontal Facing Angle Of(
+			Player Closest To Reticle(Event Player, All Teams)), 0) * -3, All Players(All Teams), Player Closest To Reticle(Event Player,
+			All Teams), True);
+		disabled Event Player.I = Position Of(Event Player);
+		disabled Start Forcing Player Position(Event Player, Event Player.I, True);
+		disabled Start Facing(Event Player, Direction Towards(Eye Position(Event Player), Eye Position(Player Closest To Reticle(Event Player,
+			All Teams))), 10000, To World, Direction and Turn Rate);
+		disabled Chase Player Variable Over Time(Event Player, I, Event Player.H, 0.500, Destination and Duration);
+		disabled Wait(0.500, Ignore Condition);
+		disabled Stop Chasing Player Variable(Event Player, I);
+		disabled Stop Forcing Player Position(Event Player);
+		disabled Teleport(Event Player, Nearest Walkable Position(Event Player));
+		disabled Stop Facing(Event Player);
+		disabled Damage(Attacker, Event Player, Event Damage / 2);
+		"Old Teleport Functions"
+		disabled Teleport(Event Player, World Vector Of(Vector(Random Integer(0, 1) == 1 ? -1 : 1, 0, 0), Event Player, Rotation And Translation));
+		Teleport(Event Player, Ray Cast Hit Position(Position Of(Attacker), Position Of(Attacker) + Direction From Angles(
 			Horizontal Facing Angle Of(Attacker), 0) * -5, All Players(All Teams), Attacker, True));
 		Teleport(Event Player, Nearest Walkable Position(Event Player));
-		disabled Set Facing(Event Player, Direction Towards(Eye Position(Event Player), Eye Position(Attacker)), To World);
+		Set Facing(Event Player, Direction Towards(Eye Position(Event Player), Eye Position(Attacker)), To World);
+	}
+}
+
+rule("43: Auto Dodge Force Dodge")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 43;
+		Is Button Held(Event Player, Button(Interact)) == True;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration -= 3;
 		If(Event Player.perkDuration < 0);
 			Event Player.perkDuration = 0;
 		End;
+		Clear Status(Event Player, Hacked);
+		Clear Status(Event Player, Burning);
+		Clear Status(Event Player, Knocked Down);
+		Clear Status(Event Player, Asleep);
+		Clear Status(Event Player, Frozen);
+		Clear Status(Event Player, Rooted);
+		Clear Status(Event Player, Stunned);
+		Stop All Damage Over Time(Event Player);
+		Set Status(Event Player, Event Player, Phased Out, 0.250);
+		Play Effect(All Players(All Teams), Bad Explosion, Color(White), Event Player, 5);
+		Play Effect(Array(Event Player, Player Closest To Reticle(Event Player, All Teams)), Ring Explosion Sound, Color(White),
+			Position Of(Event Player), 200);
+		"Dodge Move"
+		Event Player.H = 0;
+		Event Player.H = Ray Cast Hit Position(Position Of(Player Closest To Reticle(Event Player, All Teams)), Position Of(
+			Player Closest To Reticle(Event Player, All Teams)) + Direction From Angles(Horizontal Facing Angle Of(
+			Player Closest To Reticle(Event Player, All Teams)), 0) * -3, All Players(All Teams), Player Closest To Reticle(Event Player,
+			All Teams), True);
+		Event Player.I = Position Of(Event Player);
+		Start Forcing Player Position(Event Player, Event Player.I, True);
+		Start Facing(Event Player, Direction Towards(Eye Position(Event Player), Eye Position(Player Closest To Reticle(Event Player,
+			All Teams))), 10000, To World, Direction and Turn Rate);
+		Chase Player Variable Over Time(Event Player, I, Event Player.H, 0.500, Destination and Duration);
+		Wait(0.500, Ignore Condition);
+		Stop Chasing Player Variable(Event Player, I);
+		Stop Forcing Player Position(Event Player);
+		Teleport(Event Player, Nearest Walkable Position(Event Player));
+		Stop Facing(Event Player);
 	}
 }
 
@@ -2964,12 +3036,12 @@ rule("50: Conqueror's Will Effect")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Set Environment Credit Player(Event Player, Event Player.cWill);
 		Set Status(Event Player, Event Player.cWill, Asleep, 2);
-		Start Scaling Player(Event Player, Random Real(0.100, 3), False);
+		disabled Start Scaling Player(Event Player, Random Real(0.100, 3), False);
 		Set Move Speed(Event Player, 75);
-		Set Damage Received(Event Player, 75);
+		Set Damage Received(Event Player, 125);
 		Event Player.cWill = 0;
 		Wait(8, Ignore Condition);
-		Stop Scaling Player(Event Player);
+		disabled Stop Scaling Player(Event Player);
 		Set Move Speed(Event Player, 100);
 		Set Damage Received(Event Player, 100);
 	}
@@ -7429,7 +7501,7 @@ rule("120: 0.2 Second Domain Expansion: Infinite Void")
 		Event Player.perkColour = Color(Black);
 		Event Player.perkName = Custom String("0.2 Second Void");
 		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.perkDuration = 2;
+		Event Player.perkDuration = 4;
 		Event Player.J = Color(Black);
 		Event Player.H = 1;
 		Event Player.G = Position Of(Event Player);
@@ -7950,7 +8022,9 @@ rule("125: Heavenly Restriction")
 		Set Move Speed(Event Player, 200);
 		Set Jump Vertical Speed(Event Player, 200);
 		Set Damage Dealt(Event Player, 150);
-		Set Damage Received(Event Player, 50);
+		Add Health Pool To Player(Event Player, Health, 250, True, True);
+		Event Player.espIcon = True;
+		Event Player.espPerk = False;
 		Wait Until(Event Player.perkActivated == False, 9999);
 		Set Ability 1 Enabled(Event Player, True);
 		Set Ability 2 Enabled(Event Player, True);
@@ -7958,8 +8032,10 @@ rule("125: Heavenly Restriction")
 		Set Move Speed(Event Player, 100);
 		Set Jump Vertical Speed(Event Player, 100);
 		Set Damage Dealt(Event Player, 100);
-		Set Damage Received(Event Player, 100);
+		Remove All Health Pools From Player(Event Player);
 		Set Gravity(Event Player, 100);
+		Event Player.espIcon = False;
+		Event Player.espPerk = False;
 	}
 }
 
