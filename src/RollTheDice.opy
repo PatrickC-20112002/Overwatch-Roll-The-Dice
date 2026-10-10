@@ -35,6 +35,49 @@ variables
 		33: espIcon
 		34: espPerk
 		35: consecutiveDiceRoll
+		36: text
+}
+
+disabled rule("Summon Bot")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Is Button Held(Event Player, Button(Crouch)) == True;
+	}
+
+	actions
+	{
+		Create Dummy Bot(Hero(Ashe), All Teams, -1, Vector(0, 0, 0), Vector(0, 0, 0));
+	}
+}
+
+disabled rule("dummy bot spam")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Is Dummy Bot(Event Player) == True;
+	}
+
+	actions
+	{
+		Press Button(Event Player, Button(Interact));
+		Wait(1, Ignore Condition);
+		Loop;
+	}
 }
 
 rule("Enable/Disable Favourite Perk")
@@ -71,7 +114,7 @@ rule("Banned Favourite Perks + Total Number of Perks")
 	actions
 	{
 		Global.bannedFav = Array(64, 65, 86, 97, 102, 105, 46, 118, 134);
-		Global.perkTotal = 134;
+		Global.perkTotal = 137;
 	}
 }
 
@@ -449,7 +492,7 @@ rule("AD TEXT")
 			Visible To Sort Order String and Color, Default Visibility);
 		Create HUD Text(All Players(All Teams), Null, Null, Custom String("CURRENT VERSION"), Left, 5, Null, Null, Color(White),
 			Visible To Sort Order String and Color, Default Visibility);
-		Create HUD Text(All Players(All Teams), Null, Null, Custom String("V2.2.7"), Left, 6, Null, Null, Color(Aqua),
+		Create HUD Text(All Players(All Teams), Null, Null, Custom String("V2.3.0"), Left, 6, Null, Null, Color(Aqua),
 			Visible To Sort Order String and Color, Default Visibility);
 		disabled Create HUD Text(All Players(All Teams), Null, Null, Custom String("CURRENT EXPERIMENT"), Left, 6, Null, Null, Color(White),
 			Visible To Sort Order String and Color, Default Visibility);
@@ -571,8 +614,8 @@ rule("Roll The Dice")
 		End;
 		"Normal Roll"
 		If(Event Player.FavouriteTextAndChance != 1);
-			Event Player.diceRoll = Random Integer(1, Global.perkTotal);
-			disabled Event Player.diceRoll = 125;
+			disabled Event Player.diceRoll = Random Integer(1, Global.perkTotal);
+			Event Player.diceRoll = 137;
 		End;
 		If(Current Game Mode == Game Mode(Deathmatch));
 			Small Message(Event Player, Custom String("{0}{1} rolled {2}", Hero Icon String(Hero Of(Event Player)), Event Player,
@@ -2063,14 +2106,12 @@ rule("37: Beat Drop")
 			Hacked) || Has Status(Event Player, Asleep), 5);
 		If((Is Dead(Event Player) || Has Status(Event Player, Hacked) || Has Status(Event Player, Asleep) || Has Status(Event Player,
 			Stunned)) == True);
-			Set Ultimate Charge(Event Player, 0);
 			Event Player.G = 0;
 			Event Player.perkDuration = 0;
 			Event Player.perkActivated = False;
-			Wait Until(Event Player.diceCooldown >= 1, 99999);
-			Event Player.diceCooldown += 10;
 			Abort;
 		End;
+		Play Effect(Event Player, Doomfist Meteor Strike Impact Sound, Color(White), Position Of(Event Player), 200);
 		Add Health Pool To Player(Event Player, Health, 750, False, True);
 		Start Damage Over Time(Event Player, Null, 30, 125);
 		disabled Wait(1, Ignore Condition);
@@ -4244,6 +4285,8 @@ rule("73: Kaioken x3")
 		Event Player.G = 0;
 		Set Damage Dealt(Event Player, 100);
 		Set Jump Vertical Speed(Event Player, 100);
+		disabled Set Move Speed(Event Player, 50);
+		disabled Wait(2, Ignore Condition);
 		Set Move Speed(Event Player, 100);
 	}
 }
@@ -8593,5 +8636,594 @@ rule("134: Kings Demand Kill")
 		End;
 		Wait(0.250, Ignore Condition);
 		Loop If Condition Is True;
+	}
+}
+
+rule("135: Phlog")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 135;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Blue);
+		Event Player.perkName = Custom String("Phlog");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 30;
+		Event Player.G = 0;
+		Create Progress Bar HUD Text(Event Player, Event Player.G / 12, Custom String("Mmmph", Round To Integer(Event Player.G, Up)), Top,
+			5, Color(Blue), Color(White), Visible To Values and Color, Default Visibility);
+		Event Player.H = Last Text ID;
+		Wait Until(Event Player.perkActivated == False, 99999);
+		Destroy Progress Bar HUD Text(Event Player.H);
+		Destroy Effect(Event Player.I);
+		Set Damage Dealt(Event Player, 100);
+		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.I = 0;
+		Event Player.K = 0;
+	}
+}
+
+rule("135: Phlog Damage")
+{
+	event
+	{
+		Player Dealt Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 135;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.G += Event Damage;
+	}
+}
+
+rule("135: Phlog Damage Notice")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 135;
+		Event Player.G >= 1200;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Play Effect(All Players(All Teams), Good Pickup Effect, Color(Red), Event Player, 1);
+		Big Message(Event Player, Custom String("Press Interact to use."));
+	}
+}
+
+rule("135: Phlog Activate")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 135;
+		Is Button Held(Event Player, Button(Interact)) == True;
+		Event Player.G >= 1200;
+		Is In Air(Event Player) == False;
+		Is Alive(Event Player) == True;
+		Event Player.K != True;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.K = True;
+		Event Player.perkDuration += 15;
+		Create Effect(All Players(All Teams), Echo Cloning Effect, Color(Blue), Event Player, 1, Visible To Position and Radius);
+		Event Player.I = Last Created Entity;
+		Set Damage Dealt(Event Player, 200);
+		Set Status(Event Player, Null, Phased Out, 3);
+		Cancel Primary Action(Event Player);
+		Communicate(Event Player, Emote Up);
+		disabled Wait Until(!Is Communicating Any Emote(Event Player), 5);
+		disabled Clear Status(Event Player, Phased Out);
+	}
+}
+
+rule("135: Phlog Kill")
+{
+	event
+	{
+		Player Dealt Final Blow;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 135;
+		Event Player.G >= 1200;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Set Status(Victim, Event Player, Burning, 3);
+	}
+}
+
+rule("136: Solar Flare")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 136;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Yellow);
+		Event Player.perkName = Custom String("Solar Flare");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 30;
+		Big Message(Event Player, Custom String("Press Interact to Use"));
+		Wait Until(Event Player.perkActivated == False, 9999);
+		Event Player.I = 0;
+	}
+}
+
+rule("136: Solar Flare Interact")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 136;
+		Is Alive(Event Player) == True;
+		Is Button Held(Event Player, Button(Interact)) == True;
+		Event Player.I != True;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.I = True;
+		Event Player.perkDuration = 5.275;
+		"Text"
+		Event Player.text = 0;
+		Create In-World Text(All Players(All Teams), Custom String("{0}", Event Player.text[0]), Event Player, 2, Clip Against Surfaces,
+			Visible To Position String and Color, Event Player.text[1], Default Visibility);
+		Event Player.text[2] = Last Text ID;
+		Create In-World Text(Event Player, Custom String("{0}", Event Player.text[0]), Update Every Frame(Eye Position(Event Player)
+			+ Facing Direction Of(Event Player) * 3 + Vector(0, 0.750, 0)), 2, Do Not Clip, Visible To Position String and Color,
+			Event Player.text[1], Default Visibility);
+		Event Player.text[3] = Last Text ID;
+		Event Player.text[1] = Color(White);
+		Event Player.text[0] = Custom String("S");
+		Wait(0.025, Ignore Condition);
+		Event Player.text[0] = Custom String("So");
+		Wait(0.025, Ignore Condition);
+		Event Player.text[0] = Custom String("Sol");
+		Wait(0.025, Ignore Condition);
+		Event Player.text[0] = Custom String("Sola");
+		Wait(0.025, Ignore Condition);
+		Event Player.text[0] = Custom String("Solar");
+		Wait(0.025, Ignore Condition);
+		Event Player.text[0] = Custom String("Solar ");
+		Wait(0.025, Ignore Condition);
+		Event Player.text[0] = Custom String("Solar F");
+		Wait(0.025, Ignore Condition);
+		Event Player.text[0] = Custom String("Solar Fl");
+		Wait(0.025, Ignore Condition);
+		Event Player.text[0] = Custom String("Solar Fla");
+		Wait(0.025, Ignore Condition);
+		Event Player.text[0] = Custom String("Solar Flar");
+		Wait(0.025, Ignore Condition);
+		Event Player.text[0] = Custom String("Solar Flare");
+		Wait(0.025, Ignore Condition);
+		Event Player.text[0] = Custom String("Solar Flare!");
+		"restAllow control"
+		Allow Button(Event Player, Button(Primary Fire));
+		Allow Button(Event Player, Button(Secondary Fire));
+		Allow Button(Event Player, Button(Ability 1));
+		Allow Button(Event Player, Button(Ability 2));
+		Allow Button(Event Player, Button(Ultimate));
+		Allow Button(Event Player, Button(Interact));
+		Allow Button(Event Player, Button(Jump));
+		Allow Button(Event Player, Button(Crouch));
+		Allow Button(Event Player, Button(Melee));
+		Allow Button(Event Player, Button(Reload));
+		Stop Forcing Throttle(Event Player);
+		Create Effect(All Players(All Teams), Sphere, Color(White), Position Of(Event Player), 25, None);
+		Event Player.G = Last Created Entity;
+		Event Player.H = Filtered Array(Players Within Radius(Event Player, 25, All Teams, Surfaces And All Barriers),
+			Current Array Element != Event Player && Is Alive(Current Array Element) && Array Contains(Players in View Angle(
+			Current Array Element, All Teams, 45), Event Player) == True);
+		Set Status(Event Player.H, Event Player, Stunned, 9999);
+		Set Environment Credit Player(Event Player.H, Event Player);
+		Set Move Speed(Event Player.H, 50);
+		Start Camera(Event Player.H, Vector(-10000, -10000, -10000), Vector(-10000, -10000, -10000), 0);
+		Wait(1, Ignore Condition);
+		Clear Status(Event Player.H, Stunned);
+		Destroy In-World Text(Event Player.text[2]);
+		Destroy In-World Text(Event Player.text[3]);
+		Event Player.text = 0;
+		Destroy Effect(Event Player.G);
+		Event Player.G = 0;
+		Wait(2, Ignore Condition);
+		Stop Camera(Event Player.H);
+		Wait(2, Ignore Condition);
+		Set Move Speed(Event Player.H, 100);
+		Event Player.H = 0;
+	}
+}
+
+rule("137: Legendary Warrior")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 137;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Green);
+		Event Player.perkName = Custom String("Legendary Warrior");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 60;
+		Set Status(Event Player, Event Player, Phased Out, 9999);
+		Set Status(Event Player, Event Player, Invincible, 9999);
+		Event Player.G = 0;
+		Event Player.H = 0;
+		"Disallow Control"
+		Start Forcing Throttle(Event Player, 0, 0, 0, 0, 0, 0);
+		Start Forcing Player Position(Event Player, Update Every Frame(Position Of(Event Player)), False);
+		Disallow Button(Event Player, Button(Primary Fire));
+		Disallow Button(Event Player, Button(Secondary Fire));
+		Disallow Button(Event Player, Button(Ability 1));
+		Disallow Button(Event Player, Button(Ability 2));
+		Disallow Button(Event Player, Button(Ultimate));
+		Disallow Button(Event Player, Button(Interact));
+		Disallow Button(Event Player, Button(Jump));
+		Disallow Button(Event Player, Button(Crouch));
+		Disallow Button(Event Player, Button(Melee));
+		Disallow Button(Event Player, Button(Reload));
+		Start Facing(Event Player, Direction From Angles(Horizontal Facing Angle Of(Event Player), -45), 10000, To World,
+			Direction and Turn Rate);
+		"camera infront low"
+		Start Camera(Event Player, World Vector Of(Vector(0, 2, 1), Event Player, Rotation And Translation), Eye Position(Event Player),
+			1);
+		Wait(1.500, Ignore Condition);
+		"camera infront pan face"
+		Start Camera(Event Player, World Vector Of(Vector(0, 2.500, 0.750), Event Player, Rotation And Translation), Eye Position(
+			Event Player), 3);
+		Wait(1.500, Ignore Condition);
+		"Text"
+		Event Player.text = 0;
+		Create In-World Text(All Players(All Teams), Custom String("{0}", Event Player.text[0]), Event Player, 2, Do Not Clip,
+			Visible To Position String and Color, Event Player.text[1], Default Visibility);
+		Event Player.text[2] = Last Text ID;
+		Event Player.text[1] = Color(White);
+		Event Player.text[0] = Custom String("G");
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GR");
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRA");
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAA");
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAA");
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAA");
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAA");
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAA");
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAAA");
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAAAA");
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAAAAA");
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAAAAAA");
+		Wait(0.100, Ignore Condition);
+		"camera infront zoom out"
+		Start Camera(Event Player, World Vector Of(Vector(0, 5.500, 3.750), Event Player, Rotation And Translation), Eye Position(
+			Event Player), 1);
+		Event Player.text[0] = Custom String("GRAAAAAAAAAAA");
+		Play Effect(All Players(All Teams), Bad Pickup Effect, Color(Green), Event Player, 1);
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAAAAAAAA");
+		Play Effect(All Players(All Teams), Bad Explosion, Color(Green), Event Player, 1);
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAAAAAAAAAG");
+		Play Effect(All Players(All Teams), Bad Pickup Effect, Color(Green), Event Player, 1);
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAAAAAAAAAGH");
+		Play Effect(All Players(All Teams), Bad Explosion, Color(Green), Event Player, 1);
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAAAAAAAAAGH!");
+		Play Effect(All Players(All Teams), Bad Pickup Effect, Color(White), Event Player, 1);
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAAAAAAAAAGH!!");
+		Play Effect(All Players(All Teams), Bad Explosion, Color(White), Event Player, 1);
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAAAAAAAAAGH!!!");
+		Play Effect(All Players(All Teams), Bad Pickup Effect, Color(White), Event Player, 1);
+		Wait(0.100, Ignore Condition);
+		Event Player.text[0] = Custom String("GRAAAAAAAAAAAAAGH!!!!");
+		Play Effect(All Players(All Teams), Bad Explosion, Color(White), Event Player, 1);
+		Wait(0.500, Ignore Condition);
+		Play Effect(All Players(All Teams), Doomfist Meteor Strike Impact Effect, Color(Green), Event Player, 1);
+		Play Effect(All Players(All Teams), Doomfist Meteor Strike Impact Sound, Color(White), Eye Position(Event Player), 200);
+		Play Effect(All Players(All Teams), DVa Self Destruct Explosion Effect, Color(White), Event Player, 25);
+		Play Effect(All Players(All Teams), Lúcio Sound Barrier Cast Effect, Color(White), Event Player, 25);
+		Event Player.H = 1;
+		Create Effect(All Players(All Teams), Sphere, Color(Green), Event Player, Event Player.H, Visible To Position and Radius);
+		Event Player.G[1] = Last Created Entity;
+		Event Player.G[0] = True;
+		Create Effect(All Players(All Teams), Good Aura, Color(Green), Event Player, 3, Visible To Position and Radius);
+		Event Player.G[2] = Last Created Entity;
+		Create Effect(All Players(All Teams), Energy Sound, Color(Green), Eye Position(Event Player), 100, Visible To Position and Radius);
+		Event Player.G[3] = Last Created Entity;
+		Wait(0.050, Ignore Condition);
+		Start Scaling Player(Event Player, 1.330, True);
+		Chase Player Variable Over Time(Event Player, H, 25, 2.500, Destination and Duration);
+		Create Effect(All Players(All Teams), Baptiste Immortality Field Protected Effect, Color(White), Event Player, 1,
+			Visible To Position and Radius);
+		Event Player.G[4] = Last Created Entity;
+		Create Progress Bar In-World Text(Filtered Array(All Players(All Teams), Current Array Element != Event Player),
+			Event Player.perkDuration / 60 * 100, Custom String(""), Update Every Frame(Eye Position(Event Player) + Vector(0, 0, 0)),
+			0.500, Do Not Clip, Color(Green), Color(White), Visible To Position Values and Color, Default Visibility);
+		Event Player.G[5] = Last Created Entity;
+		Wait(4.500, Ignore Condition);
+		Stop Chasing Player Variable(Event Player, H);
+		Destroy In-World Text(Event Player.text[2]);
+		"restAllow control"
+		Allow Button(Event Player, Button(Primary Fire));
+		Allow Button(Event Player, Button(Secondary Fire));
+		Allow Button(Event Player, Button(Ability 1));
+		Allow Button(Event Player, Button(Ability 2));
+		Allow Button(Event Player, Button(Ultimate));
+		Allow Button(Event Player, Button(Interact));
+		Allow Button(Event Player, Button(Jump));
+		Allow Button(Event Player, Button(Crouch));
+		Allow Button(Event Player, Button(Melee));
+		Allow Button(Event Player, Button(Reload));
+		Stop Forcing Throttle(Event Player);
+		Stop Forcing Player Position(Event Player);
+		Stop Facing(Event Player);
+		Destroy Effect(Event Player.G[1]);
+		Event Player.H = 0;
+		Event Player.G[0] = False;
+		Stop Camera(Event Player);
+		Create Progress Bar HUD Text(Event Player, Event Player.perkDuration / 60 * 100, Custom String("Legendary Form:"), Top, 10, Color(
+			Green), Color(White), Visible To Values and Color, Default Visibility);
+		Event Player.G[6] = Last Text ID;
+		Clear Status(Event Player, Phased Out);
+		Clear Status(Event Player, Invincible);
+		Event Player.perkDuration += 10;
+		Event Player.J = 3;
+		Event Player.I = True;
+		Set Damage Dealt(Event Player, 175);
+		Set Damage Received(Event Player, 75);
+		Set Move Speed(Event Player, 125);
+		Set Jump Vertical Speed(Event Player, 200);
+		Add Health Pool To Player(Event Player, Health, 200, True, True);
+		Wait Until(Event Player.perkActivated == False, 99999);
+		Set Damage Dealt(Event Player, 100);
+		Set Damage Received(Event Player, 100);
+		Set Move Speed(Event Player, 100);
+		Set Jump Vertical Speed(Event Player, 100);
+		Stop Scaling Player(Event Player);
+		Remove All Health Pools From Player(Event Player);
+		Destroy Effect(Event Player.G[2]);
+		Destroy Effect(Event Player.G[3]);
+		Destroy Effect(Event Player.G[4]);
+		Destroy Progress Bar In-World Text(Event Player.G[5]);
+		Destroy Progress Bar HUD Text(Event Player.G[6]);
+		Event Player.text = 0;
+		Event Player.G = 0;
+		Event Player.I = 0;
+		Event Player.J = 0;
+	}
+}
+
+rule("137: Legendary Warrior - Intro Kill")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 137;
+		Event Player.G[0] == True;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Kill(Filtered Array(Players Within Radius(Event Player, Event Player.H, All Teams, Off), Current Array Element != Event Player),
+			Event Player);
+		Wait(0.250, Ignore Condition);
+		Loop If Condition Is True;
+	}
+}
+
+rule("137: Legendary Warrior - Stomp")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 137;
+		Event Player.perkActivated == True;
+		Is In Air(Event Player) == True;
+		Event Player.I == True;
+		Is Button Held(Event Player, Button(Crouch)) == True;
+		Event Player.J > 0;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Cancel Primary Action(Event Player);
+		Disallow Button(Event Player, Button(Primary Fire));
+		Disallow Button(Event Player, Button(Secondary Fire));
+		Disallow Button(Event Player, Button(Ability 1));
+		Disallow Button(Event Player, Button(Ability 2));
+		Disallow Button(Event Player, Button(Ultimate));
+		Disallow Button(Event Player, Button(Interact));
+		Disallow Button(Event Player, Button(Jump));
+		Disallow Button(Event Player, Button(Crouch));
+		Disallow Button(Event Player, Button(Melee));
+		Disallow Button(Event Player, Button(Reload));
+		Event Player.J -= 1;
+		Small Message(Event Player, Custom String("Remaining Stomps: {0}", Event Player.J));
+		Apply Impulse(Event Player, Down, 70, To World, Cancel Contrary Motion);
+		Wait Until(Is On Ground(Event Player), 99999);
+		Allow Button(Event Player, Button(Primary Fire));
+		Allow Button(Event Player, Button(Secondary Fire));
+		Allow Button(Event Player, Button(Ability 1));
+		Allow Button(Event Player, Button(Ability 2));
+		Allow Button(Event Player, Button(Ultimate));
+		Allow Button(Event Player, Button(Interact));
+		Allow Button(Event Player, Button(Jump));
+		Allow Button(Event Player, Button(Crouch));
+		Allow Button(Event Player, Button(Melee));
+		Allow Button(Event Player, Button(Reload));
+		Set Status(Filtered Array(Players Within Radius(Event Player, 5, All Teams, Surfaces), Current Array Element != Event Player),
+			Event Player, Knocked Down, 1);
+		Damage(Filtered Array(Players Within Radius(Event Player, 5, All Teams, Surfaces), Current Array Element != Event Player),
+			Event Player, 25);
+	}
+}
+
+rule("137: Legendary Warrior - Stomp Recharge")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 137;
+		Event Player.perkActivated == True;
+		Event Player.I == True;
+		Event Player.J <= 0;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Wait(8, Ignore Condition);
+		Abort If Condition Is False;
+		Event Player.J = 3;
+		Small Message(Event Player, Custom String("3 Stomps Refilled!"));
+	}
+}
+
+rule("137: Legendary Warrior - Siphon")
+{
+	event
+	{
+		Player Dealt Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 137;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration += Event Damage * 0.010;
+		If(Event Player.perkDuration >= 60);
+			Event Player.perkDuration = 60;
+		End;
+		Heal(Event Player, Event Player, Event Damage * 0.500);
+		Play Effect(All Players(All Teams), Heal Target Active Effect, Color(White), Event Player, 1);
+	}
+}
+
+rule("137: Legendary Warrior - Die")
+{
+	event
+	{
+		Player Died;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 137;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		"half"
+		disabled Event Player.perkDuration = Event Player.perkDuration / 2;
+		"turn off"
+		Event Player.perkDuration = 0;
+		Event Player.perkActivated = False;
 	}
 }
