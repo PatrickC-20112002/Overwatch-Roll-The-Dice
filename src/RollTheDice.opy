@@ -4567,31 +4567,29 @@ rule("88: Constant Nullification")
 		Event Player.H = Last Created Entity;
 		While(Event Player.perkActivated == True);
 			Set Slow Motion(100);
-			Cancel Primary Action(Filtered Array(Players Within Radius(Event Player, Event Player.I, All Teams, Off),
-				Current Array Element != Event Player));
-			Stop All Heal Over Time(Players Within Radius(Event Player, Event Player.I, All Teams, Off));
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Hacked);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Burning);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Knocked Down);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Asleep);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Frozen);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Rooted);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Stunned);
-			Stop All Damage Over Time(Players Within Radius(Event Player, Event Player.I, All Teams, Off));
-			Set Aim Speed(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Move Speed(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Damage Received(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Damage Dealt(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Gravity(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Knockback Dealt(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Knockback Received(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Stop Modifying Hero Voice Lines(Players Within Radius(Event Player, Event Player.I, All Teams, Off));
-			Stop Scaling Player(Players Within Radius(Event Player, Event Player.I, All Teams, Off));
-			Filtered Array(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Current Array Element != Event Player)
-				.perkDuration = 0;
-			Filtered Array(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Current Array Element != Event Player)
-				.perkActivated = False;
-			Set Environment Credit Player(Event Player, Players Within Radius(Event Player, Event Player.I, All Teams, Off));
+			Event Player.J = Players Within Radius(Event Player, Event Player.I, All Teams, Off);
+			Cancel Primary Action(Filtered Array(Event Player.J, Current Array Element != Event Player));
+			Stop All Heal Over Time(Event Player.J);
+			Clear Status(Event Player.J, Hacked);
+			Clear Status(Event Player.J, Burning);
+			Clear Status(Event Player.J, Knocked Down);
+			Clear Status(Event Player.J, Asleep);
+			Clear Status(Event Player.J, Frozen);
+			Clear Status(Event Player.J, Rooted);
+			Clear Status(Event Player.J, Stunned);
+			Stop All Damage Over Time(Event Player.J);
+			Set Aim Speed(Event Player.J, 100);
+			Set Move Speed(Event Player.J, 100);
+			Set Damage Received(Event Player.J, 100);
+			Set Damage Dealt(Event Player.J, 100);
+			Set Gravity(Event Player.J, 100);
+			Set Knockback Dealt(Event Player.J, 100);
+			Set Knockback Received(Event Player.J, 100);
+			Stop Modifying Hero Voice Lines(Event Player.J);
+			Stop Scaling Player(Event Player.J);
+			Filtered Array(Event Player.J, Current Array Element != Event Player).perkDuration = 0;
+			Filtered Array(Event Player.J, Current Array Element != Event Player).perkActivated = False;
+			Set Environment Credit Player(Filtered Array(Event Player.J, Current Array Element != Event Player), Event Player);
 			Wait(0.250, Ignore Condition);
 		End;
 		Wait Until(Event Player.perkActivated == False, 999999);
@@ -4600,6 +4598,7 @@ rule("88: Constant Nullification")
 		Event Player.I = 0;
 		Event Player.G = 0;
 		Event Player.H = 0;
+		Event Player.J = 0;
 	}
 }
 
