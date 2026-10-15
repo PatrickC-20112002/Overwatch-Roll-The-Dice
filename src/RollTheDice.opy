@@ -7957,9 +7957,11 @@ rule("145: Spirit Bomb")
 		Allow Button(Event Player, Button(Jump));
 		Allow Button(Event Player, Button(Crouch));
 		Set Move Speed(Event Player, 100);
-		"Begin 60 Second Preparation"
-		Event Player.perkDuration = 60;
-		Stop Chasing Player Variable(Event Player, perkDuration);
+		"Begin 60 Second Preparation (skipped if ended during opening cutscene)"
+		If(Event Player.perkActivated == True && Event Player.diceRoll == 145);
+			Event Player.perkDuration = 60;
+			Stop Chasing Player Variable(Event Player, perkDuration);
+		End;
 		"Resolve HUD"
 		Create Progress Bar HUD Text(Event Player, Event Player.G, Custom String("Resolve"), Top, 5, Color(Sky Blue), Color(White),
 			Visible To Values and Color, Default Visibility);
@@ -8087,7 +8089,7 @@ rule("145: Spirit Bomb")
 			Event Player.perkActivated = False;
 			Big Message(Event Player, Custom String("Spirit Bomb preparation failed."));
 		"Preparation Complete"
-		Else If(Event Player.perkActivated == True && Event Player.perkDuration <= 0.050);
+		Else If(Event Player.perkActivated == True && Event Player.perkDuration <= 0.050 && Event Player.diceRoll == 145);
 			"Remove Preparation UI"
 			Destroy Progress Bar HUD Text(Event Player.H[0]);
 			Destroy HUD Text(Event Player.H[1]);
