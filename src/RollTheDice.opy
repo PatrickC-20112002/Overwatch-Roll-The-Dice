@@ -400,6 +400,7 @@ rule("Init")
 	conditions
 	{
 		(Event Player.isSelectingFavourite == False || Global.favPerkEnabled == False) == True;
+		Is Dummy Bot(Event Player) == False;
 	}
 
 	actions
@@ -682,7 +683,11 @@ rule("Roll The Dice")
 			"Dice Reroll"
 			If(Random Integer(0, 1) == 0);
 				Event Player.diceRoll = Event Player.diceReroll;
+				"clear before waiting so a rerolled perk can set diceReroll again"
+				Event Player.diceReroll = 0;
 				Small Message(Event Player, Custom String("You rerolled your perk."));
+				"let the rerolled perk's rule set perkName before announcing it"
+				Wait(0.016, Ignore Condition);
 				If(Current Game Mode == Game Mode(Deathmatch));
 					Small Message(Event Player, Custom String("{0}{1} rolled {2}", Hero Icon String(Hero Of(Event Player)), Event Player,
 						Event Player.perkName));
@@ -694,7 +699,6 @@ rule("Roll The Dice")
 					Small Message(All Players(Opposite Team Of(Team Of(Event Player))), Custom String("{0}{1} rolled a perk.", Hero Icon String(
 						Hero Of(Event Player)), Event Player, Event Player.perkName));
 				End;
-				Event Player.diceReroll = 0;
 				Abort;
 			End;
 			Event Player.diceReroll = 0;
@@ -4452,7 +4456,8 @@ rule("86: Heart Virus")
 			End;
 			"find new targets once per tick"
 			Event Player.virusTargets = Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams,
-				Surfaces And Enemy Barriers), Current Array Element != Event Player && Current Array Element.diceRoll != 86);
+				Surfaces And Enemy Barriers), Current Array Element != Event Player && Current Array Element.diceRoll != 86
+				&& Is Dummy Bot(Current Array Element) == False);
 			"end any active perk first so its normal cleanup runs"
 			Filtered Array(Event Player.virusTargets, Current Array Element.perkActivated == True).perkDuration = 0;
 			Filtered Array(Event Player.virusTargets, Current Array Element.perkActivated == True).perkActivated = False;
