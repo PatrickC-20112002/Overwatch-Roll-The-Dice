@@ -563,7 +563,7 @@ rule("Bring Down Cooldown")
 	}
 }
 
-rule("")
+rule("Final Blows lower Dice Cooldown")
 {
 	event
 	{
@@ -625,8 +625,10 @@ rule("Apply Pending Duration Modifier")
 		"duration perks"
 		Event Player.diceRoll != 126;
 		Event Player.diceRoll != 127;
+		"ban hammer"
+		Event Player.diceRoll != 46;
 		"spirit bomb"
-		disabled Event Player.diceRoll != 145;
+		Event Player.diceRoll != 145;
 	}
 
 	actions
@@ -638,7 +640,6 @@ rule("Apply Pending Duration Modifier")
 		Else;
 			Small Message(Event Player, Custom String("Perk Duration /{0}", 1 / Event Player.durationModifier));
 		End;
-		Wait(3, Ignore Condition);
 		Event Player.durationModifier = 1;
 	}
 }
@@ -700,7 +701,7 @@ rule("Roll The Dice")
 		"If the player has a favourite perk selected, roll the favourite chance"
 		If(Event Player.favouritePerkRoll != 0);
 			Event Player.favouriteChanceRoll = Random Integer(1, Workshop Setting Integer(Custom String("Favourite Perk"), Custom String(
-				"Favourite Roll Chance (1 in _ chance)"), 10, 1, 10, 0));
+				"Favourite Roll Chance (1 in _ chance)"), 5, 1, 10, 0));
 			"If the favourite chance succeeds, force the favourite perk"
 			If(Event Player.favouriteChanceRoll == 1);
 				Event Player.diceRoll = Event Player.favouritePerkRoll;
@@ -714,7 +715,7 @@ rule("Roll The Dice")
 		Else;
 			"If the player has no favourite perk selected, roll a normal random perk"
 			Event Player.diceRoll = Random Integer(1, Global.perkTotal);
-			disabled Event Player.diceRoll = 47;
+			disabled Event Player.diceRoll = 46;
 		End;
 	}
 }
