@@ -79,7 +79,7 @@ rule("Banned Favourite Perks + Total Number of Perks")
 	actions
 	{
 		Global.bannedFav = Array(64, 65, 86, 97, 102, 105, 46, 118, 134, 145);
-		Global.perkTotal = 146;
+		Global.perkTotal = 150;
 	}
 }
 
@@ -577,6 +577,8 @@ rule("Final Blows lower Dice Cooldown")
 	conditions
 	{
 		Event Player.diceCooldown > 0;
+		"no cooldown refund for kills made while a perk is active"
+		Event Player.perkActivated == False;
 	}
 
 	actions
@@ -720,7 +722,7 @@ rule("Roll The Dice")
 		Else;
 			"If the player has no favourite perk selected, roll a normal random perk"
 			Event Player.diceRoll = Random Integer(1, Global.perkTotal);
-			disabled Event Player.diceRoll = 46;
+			disabled Event Player.diceRoll = 149;
 		End;
 	}
 }
@@ -4456,8 +4458,8 @@ rule("86: Heart Virus")
 			End;
 			"find new targets once per tick"
 			Event Player.virusTargets = Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams,
-				Surfaces And Enemy Barriers), Current Array Element != Event Player && Current Array Element.diceRoll != 86
-				&& Is Dummy Bot(Current Array Element) == False);
+				Surfaces And Enemy Barriers), Current Array Element != Event Player && Current Array Element.diceRoll != 86 && Is Dummy Bot(
+				Current Array Element) == False);
 			"end any active perk first so its normal cleanup runs"
 			Filtered Array(Event Player.virusTargets, Current Array Element.perkActivated == True).perkDuration = 0;
 			Filtered Array(Event Player.virusTargets, Current Array Element.perkActivated == True).perkActivated = False;
@@ -7993,7 +7995,8 @@ rule("145: Spirit Bomb")
 		Set Damage Received(Event Player, 80);
 		Set Knockback Received(Event Player, 50);
 		"Defense Loop"
-		While(Event Player.perkActivated == True && Is Alive(Event Player) == True && Event Player.perkDuration > 0.050 && Event Player.diceRoll == 145);
+		While(Event Player.perkActivated == True && Is Alive(Event Player)
+			== True && Event Player.perkDuration > 0.050 && Event Player.diceRoll == 145);
 			"Resolve"
 			If(Event Player.G >= 100);
 				Event Player.G = 0;
@@ -8392,8 +8395,8 @@ rule("146: Heat Seaking Meowssile")
 			== True && Event Player.J == False);
 			"Arm Primary Fire once it has been released"
 			Event Player.K = Event Player.K == True || Is Button Held(Event Player, Button(Primary Fire)) == False;
-			If(Magnitude Of(Velocity Of(Event Player)) < 10 || (Event Player.K == True && Is Button Held(Event Player, Button(
-				Primary Fire)) == True));
+			If(Magnitude Of(Velocity Of(Event Player)) < 10 || (Event Player.K == True && Is Button Held(Event Player, Button(Primary Fire))
+				== True));
 				"Explode"
 				Event Player.J = True;
 				Event Player.K = Position Of(Event Player);
@@ -8482,5 +8485,260 @@ rule("146: Heat Seaking Meowssile Dead")
 		Allow Button(Event Player, Button(Secondary Fire));
 		Destroy Effect(Event Player.I);
 		Event Player.I = 0;
+	}
+}
+
+rule("147: Speed Damage")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 147;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Sky Blue);
+		Event Player.perkName = Custom String("Speed Damage");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 10;
+		Create Progress Bar HUD Text(Event Player, Event Player.G / 10, Custom String("Current Damage Dealt: {0}%", Round To Integer(
+			Event Player.G, Up)), Top, 5, Color(Sky Blue), Color(White), Visible To Values and Color, Default Visibility);
+		Event Player.H = Last Text ID;
+		While(Event Player.perkActivated == True);
+			"horizontal speed only, so jumping and falling do not count. 0% stationary, 150% at 5.5 m/s running speed, uncapped"
+			Event Player.G = Horizontal Speed Of(Event Player) / 5.500 * 150;
+			Set Damage Dealt(Event Player, Event Player.G);
+			Wait(0.100, Ignore Condition);
+		End;
+		Wait(0.250, Ignore Condition);
+		Destroy Progress Bar HUD Text(Event Player.H);
+		Event Player.G = 0;
+		Set Damage Dealt(Event Player, 100);
+		Event Player.H = 0;
+	}
+}
+
+rule("148: Kill Challenge")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 148;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Red);
+		Event Player.perkName = Custom String("Kill Challenge");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 15;
+		Event Player.G = False;
+		Big Message(Event Player, Custom String("Get a final blow before time runs out!"));
+		Wait Until(Event Player.perkActivated == False, 999999);
+		If(Event Player.G == True);
+			"success: wait for Dice Cooldown Set, then clear the cooldown"
+			Wait Until(Event Player.diceCooldown > 0, 99999);
+			Event Player.diceCooldown = 0;
+			Small Message(Event Player, Custom String("Challenge complete! Dice ready."));
+		Else If(Is Alive(Event Player) == True);
+			"failure: drop to 40% of current health"
+			Set Player Health(Event Player, Health(Event Player) * 0.400);
+			Small Message(Event Player, Custom String("Challenge failed!"));
+		End;
+		Event Player.G = 0;
+	}
+}
+
+rule("148: Kill Challenge Final Blow")
+{
+	event
+	{
+		Player Dealt Final Blow;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 148;
+		Event Player.perkActivated == True;
+		Victim != Event Player;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.G = True;
+		Event Player.perkDuration = 0;
+		Event Player.perkActivated = False;
+	}
+}
+
+rule("149: Weeping Angel")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 149;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Custom Color(160, 160, 160, 255);
+		Event Player.perkName = Custom String("Weeping Angel");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 12;
+		"godmode"
+		Set Status(Event Player, Null, Invincible, 9999);
+		Set Knockback Received(Event Player, 0);
+		"melee only"
+		Set Primary Fire Enabled(Event Player, False);
+		Set Secondary Fire Enabled(Event Player, False);
+		Set Ability 1 Enabled(Event Player, False);
+		Set Ability 2 Enabled(Event Player, False);
+		Disallow Button(Event Player, Button(Ultimate));
+		"very fast while unseen, Frozen stops all movement while seen"
+		Set Move Speed(Event Player, 200);
+		"fade is ready straight away"
+		Event Player.G = 0;
+		Big Message(Event Player, Custom String("Press Interact to Fade"));
+		"seen = a living opponent within 20m is facing the holder with line of sight"
+		While(Event Player.perkActivated == True);
+			"wait for a fade press, or until seen no longer matches the frozen state"
+			Wait Until(Event Player.perkActivated == False || (Is Button Held(Event Player, Button(Interact)) == True && Total Time Elapsed >= Event Player.G) || Has Status(Event Player, Frozen)
+				!= Is True For Any(Players Within Radius(
+				Eye Position(Event Player), 20, Opposite Team Of(Team Of(Event Player)), Off), Current Array Element != Event Player && Is Alive(
+				Current Array Element) == True && Is In View Angle(Current Array Element, Eye Position(Event Player), 45) == True
+				&& Is In Line of Sight(Eye Position(Current Array Element), Eye Position(Event Player), Barriers Do Not Block LOS) == True), 999999);
+			If(Event Player.perkActivated == True && (Is Button Held(Event Player, Button(Interact)) == True && Total Time Elapsed >= Event Player.G));
+				"fade, based on Moira: 0.8s, faster, invisible, cannot be frozen or melee, 6s cooldown"
+				Clear Status(Event Player, Frozen);
+				Set Invisible(Event Player, All);
+				Set Melee Enabled(Event Player, False);
+				Set Move Speed(Event Player, 500);
+				"only the holder sees it, so it does not give away their position"
+				Create Effect(Event Player, Sphere, Color(Black), Update Every Frame(Eye Position(Event Player)), 1, Visible To Position and Radius);
+				Event Player.H = Last Created Entity;
+				Wait(0.800, Ignore Condition);
+				Destroy Effect(Event Player.H);
+				Event Player.H = 0;
+				Set Invisible(Event Player, None);
+				Set Melee Enabled(Event Player, True);
+				Set Move Speed(Event Player, 200);
+				Event Player.G = Total Time Elapsed + 6;
+			Else;
+				"the change must hold for 0.2s to freeze, 0.3s to release"
+				Wait Until(Event Player.perkActivated == False || (Is Button Held(Event Player, Button(Interact)) == True && Total Time Elapsed >= Event Player.G) || Has Status(Event Player, Frozen)
+					== Is True For Any(Players Within Radius(
+					Eye Position(Event Player), 20, Opposite Team Of(Team Of(Event Player)), Off), Current Array Element != Event Player && Is Alive(
+					Current Array Element) == True && Is In View Angle(Current Array Element, Eye Position(Event Player), 45) == True
+					&& Is In Line of Sight(Eye Position(Current Array Element), Eye Position(Event Player), Barriers Do Not Block LOS) == True), Has Status(Event Player, Frozen) ? 0.300 : 0.200);
+				"a fade press skips the toggle and is handled on the next pass"
+				If(Event Player.perkActivated == True && (Is Button Held(Event Player, Button(Interact)) == True && Total Time Elapsed >= Event Player.G) == False && Has Status(Event Player, Frozen)
+					!= Is True For Any(Players Within Radius(
+					Eye Position(Event Player), 20, Opposite Team Of(Team Of(Event Player)), Off), Current Array Element != Event Player && Is Alive(
+					Current Array Element) == True && Is In View Angle(Current Array Element, Eye Position(Event Player), 45) == True
+					&& Is In Line of Sight(Eye Position(Current Array Element), Eye Position(Event Player), Barriers Do Not Block LOS) == True));
+					If(Has Status(Event Player, Frozen) == True);
+						Clear Status(Event Player, Frozen);
+					Else;
+						Set Status(Event Player, Null, Frozen, 9999);
+						"the watcher who froze the holder gets environmental kill credit"
+						Set Environment Credit Player(Event Player, First Of(Filtered Array(Players Within Radius(Eye Position(Event Player), 20,
+							Opposite Team Of(Team Of(Event Player)), Off), Current Array Element != Event Player && Is Alive(Current Array Element)
+							== True && Is In View Angle(Current Array Element, Eye Position(Event Player), 45) == True && Is In Line of Sight(
+							Eye Position(Current Array Element), Eye Position(Event Player), Barriers Do Not Block LOS) == True)));
+					End;
+				End;
+			End;
+		End;
+		Clear Status(Event Player, Invincible);
+		Clear Status(Event Player, Frozen);
+		Set Knockback Received(Event Player, 100);
+		Set Move Speed(Event Player, 100);
+		Set Primary Fire Enabled(Event Player, True);
+		Set Secondary Fire Enabled(Event Player, True);
+		Set Ability 1 Enabled(Event Player, True);
+		Set Ability 2 Enabled(Event Player, True);
+		Allow Button(Event Player, Button(Ultimate));
+		Event Player.G = 0;
+	}
+}
+
+rule("149: Weeping Angel Melee")
+{
+	event
+	{
+		Player Dealt Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 149;
+		Event Player.perkActivated == True;
+		Event Ability == Button(Melee);
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		"melee totals 60% of the victim's max health, counting the hero's own melee damage"
+		Damage(Victim, Event Player, Max(0, Max Health(Victim) * 0.600 - Event Damage));
+	}
+}
+
+rule("150: Earthquake")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 150;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Custom Color(139, 90, 43, 255);
+		Event Player.perkName = Custom String("Earthquake");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 10;
+		Big Message(All Players(All Teams), Custom String("Earthquake!"));
+		While(Event Player.perkActivated == True);
+			"each grounded player has a 1 in 200 chance per hop to be stunned, and the same to be knocked down"
+			Set Status(Filtered Array(All Living Players(All Teams), Is On Ground(Current Array Element) == True && Random Integer(1, 20)
+				== 1), Event Player, Stunned, 0.500);
+			Set Status(Filtered Array(All Living Players(All Teams), Is On Ground(Current Array Element) == True && Random Integer(1, 20)
+				== 1), Event Player, Knocked Down, 1);
+			"tiny hop for everyone standing on the ground"
+			Apply Impulse(Filtered Array(All Living Players(All Teams), Is On Ground(Current Array Element) == True), Up, 3, To World,
+				Cancel Contrary Motion);
+			Wait(0.100, Ignore Condition);
+		End;
 	}
 }
