@@ -42,6 +42,7 @@ variables
 		37: hudLoopIndex
 		38: favouriteChanceRoll
 		39: O
+		40: virusTargets
 }
 
 rule("Enable/Disable Favourite Perk")
@@ -4408,34 +4409,6 @@ rule("85: Sent to Heaven")
 	}
 }
 
-rule("86: Heart Virus Spread")
-{
-	event
-	{
-		Ongoing - Each Player;
-		All;
-		All;
-	}
-
-	conditions
-	{
-		Event Player.diceRoll == 86;
-	}
-
-	actions
-	{
-		Abort If(Event Player.isSelectingFavourite == True);
-		disabled Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams, Surfaces And Enemy Barriers),
-			Current Array Element != Event Player).diceRoll = 86;
-		Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams, Surfaces And Enemy Barriers),
-			Current Array Element != Event Player && Current Array Element.diceRoll != 86).perkActivated = True;
-		Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams, Surfaces And Enemy Barriers),
-			Current Array Element != Event Player && Current Array Element.diceRoll != 86).diceRoll = 86;
-		Wait(0.250, Ignore Condition);
-		Loop If Condition Is True;
-	}
-}
-
 rule("86: Heart Virus")
 {
 	event
@@ -4477,11 +4450,18 @@ rule("86: Heart Virus")
 				Set Move Speed(Event Player, 35);
 				Set Aim Speed(Event Player, 25);
 			End;
-			Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams, Surfaces And Enemy Barriers),
-				Current Array Element != Event Player && Current Array Element.diceRoll != 86).perkActivated = True;
-			Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams, Surfaces And Enemy Barriers),
-				Current Array Element != Event Player && Current Array Element.diceRoll != 86).diceRoll = 86;
-			Wait(0.250, Ignore Condition);
+			"find new targets once per tick"
+			Event Player.virusTargets = Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams,
+				Surfaces And Enemy Barriers), Current Array Element != Event Player && Current Array Element.diceRoll != 86);
+			"end any active perk first so its normal cleanup runs"
+			Filtered Array(Event Player.virusTargets, Current Array Element.perkActivated == True).perkDuration = 0;
+			Filtered Array(Event Player.virusTargets, Current Array Element.perkActivated == True).perkActivated = False;
+			Wait(0.100, Ignore Condition);
+			"infect living targets"
+			Event Player.virusTargets = Filtered Array(Event Player.virusTargets, Is Alive(Current Array Element) == True);
+			Event Player.virusTargets.perkActivated = True;
+			Event Player.virusTargets.diceRoll = 86;
+			Wait(0.150, Ignore Condition);
 		End;
 		Set Aim Speed(Event Player, 100);
 		Set Move Speed(Event Player, 100);
@@ -4496,6 +4476,7 @@ rule("86: Heart Virus")
 		Destroy Effect(Event Player.virusCloud);
 		Event Player.virusCloud = 0;
 		Event Player.virusSpread = 0;
+		Event Player.virusTargets = 0;
 	}
 }
 
@@ -7998,7 +7979,7 @@ rule("145: Spirit Bomb")
 		Set Damage Received(Event Player, 80);
 		Set Knockback Received(Event Player, 50);
 		"Defense Loop"
-		While(Event Player.perkActivated == True && Is Alive(Event Player) == True && Event Player.perkDuration > 0.050);
+		While(Event Player.perkActivated == True && Is Alive(Event Player) == True && Event Player.perkDuration > 0.050 && Event Player.diceRoll == 145);
 			"Resolve"
 			If(Event Player.G >= 100);
 				Event Player.G = 0;
