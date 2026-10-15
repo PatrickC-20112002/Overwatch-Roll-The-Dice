@@ -4820,11 +4820,14 @@ rule("93: Stole the Dice")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 20;
 		Event Player.stolenPlr = Null;
+		Event Player.stolenDiceRoll = 0;
 		disabled Event Player.G = True;
-		"search"
-		While(Event Player.diceRoll == 93 && Event Player.stolenPlr == Null);
+		"search, reading the victim's perk in the same tick it is picked"
+		While(Event Player.diceRoll == 93 && Event Player.stolenDiceRoll == 0);
 			Event Player.stolenPlr = Random Value In Array(Filtered Array(Filtered Array(All Players(All Teams),
-				Current Array Element.perkActivated == True), Current Array Element != Event Player));
+				Current Array Element.perkActivated == True), Current Array Element != Event Player && Current Array Element.diceRoll != 93));
+			Event Player.stolenDiceRoll = Event Player.stolenPlr.diceRoll;
+			Event Player.stolenDiceName = Event Player.stolenPlr.perkName;
 			Wait(0.250, Ignore Condition);
 		End;
 		Big Message(Event Player, Custom String("You stole the dice from..."));
@@ -4833,13 +4836,12 @@ rule("93: Stole the Dice")
 		disabled Event Player.stolenPlr = Random Value In Array(Filtered Array(Filtered Array(All Players(All Teams),
 			Current Array Element.perkActivated == True), Current Array Element != Event Player));
 		"no player"
-		If(Event Player.stolenPlr == Null);
+		If(Event Player.stolenDiceRoll == 0);
 			Big Message(Event Player, Custom String("Couldn't find a player!"));
 			Event Player.stolenPlr = 0;
+			Event Player.stolenDiceName = 0;
 			Abort;
 		End;
-		Event Player.stolenDiceRoll = Event Player.stolenPlr.diceRoll;
-		Event Player.stolenDiceName = Event Player.stolenPlr.perkName;
 		Big Message(Event Player.stolenPlr, Custom String("Perk stolen by {0}", Event Player));
 		Big Message(Event Player, Custom String("{0} from {1} {2}!", Event Player.stolenDiceName, Hero Icon String(Hero Of(
 			Event Player.stolenPlr)), Event Player.stolenPlr));
@@ -4848,8 +4850,9 @@ rule("93: Stole the Dice")
 		disabled Event Player.perkActivated = True;
 		Event Player.diceRoll = Event Player.stolenDiceRoll;
 		Wait(0.016, Ignore Condition);
-		Event Player.stolenPlr.perkDuration = 0;
-		Event Player.stolenPlr.perkActivated = False;
+		"only end the victim's perk if they still have the stolen one"
+		Filtered Array(Event Player.stolenPlr, Current Array Element.diceRoll == Event Player.stolenDiceRoll).perkDuration = 0;
+		Filtered Array(Event Player.stolenPlr, Current Array Element.diceRoll == Event Player.stolenDiceRoll).perkActivated = False;
 		Event Player.stolenPlr = 0;
 		Event Player.stolenDiceRoll = 0;
 		Event Player.stolenDiceName = 0;
@@ -7315,21 +7318,26 @@ rule("137: Equalizer")
 
 	actions
 	{
-		Event Player.perkColour = Color(Rose);
+		Event Player.perkColour = Custom Color(215, 243, 255, 255);
 		Event Player.perkName = Custom String("Equalizer");
 		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.perkDuration = 1;
+		Event Player.perkDuration = 25;
+		Big Message(Event Player, Custom String("Press Interact to Use."));
+		Wait Until((Is Alive(Event Player) == True && Is Button Held(Event Player, Button(Interact)) == True) || (
+			Event Player.perkActivated == False), 999999);
+		Abort If(Event Player.perkActivated == False);
 		Event Player.G = Filtered Array(Players Within Radius(Event Player, 15, All Teams, Off),
 			Current Array Element != Event Player && Is Alive(Current Array Element) == True);
+		Play Effect(All Players(All Teams), Ring Explosion, Custom Color(215, 243, 255, 255), Position Of(Event Player), 15);
 		Event Player.H = Health(Event Player) / Max Health(Event Player);
-		Play Effect(All Players(All Teams), Ring Explosion, Color(Rose), Position Of(Event Player), 15);
 		Event Player.I = 0;
 		While(Event Player.I < Count Of(Event Player.G));
 			Set Player Health(Event Player.G[Event Player.I], Max Health(Event Player.G[Event Player.I]) * Event Player.H);
 			Set Ultimate Charge(Event Player.G[Event Player.I], Ultimate Charge Percent(Event Player));
 			Event Player.I += 1;
 		End;
-		Wait Until(Event Player.perkActivated == False, 999999);
+		Event Player.perkDuration = 0;
+		Event Player.perkActivated = False;
 		Event Player.G = 0;
 		Event Player.H = 0;
 		Event Player.I = 0;
@@ -8363,8 +8371,9 @@ rule("146: Heat Seaking Meowssile")
 		Event Player.G = Ultimate Charge Percent(Event Player);
 		Event Player.H = Hero Of(Event Player);
 		Event Player.J = False;
+		Event Player.K = False;
 		Start Forcing Player To Be Hero(Event Player, Hero(Jetpack Cat));
-		Disallow Button(Event Player, Button(Primary Fire));
+		Set Primary Fire Enabled(Event Player, False);
 		Set Ability 1 Enabled(Event Player, False);
 		Set Ability 2 Enabled(Event Player, False);
 		Set Melee Enabled(Event Player, False);
@@ -8376,29 +8385,35 @@ rule("146: Heat Seaking Meowssile")
 		Start Forcing Throttle(Event Player, 1, 1, 0, 0, 0, 0);
 		"Initial Grace Period"
 		Wait(0.750, Ignore Condition);
-		"Detect Stopping"
+		"Visual Burning (no damage), set after the hero swap"
+		Set Status(Event Player, Null, Burning, 9999);
+		"Detect Stopping or Primary Fire"
 		While(Event Player.perkActivated == True && Event Player.perkDuration > 0 && Is Alive(Event Player)
 			== True && Event Player.J == False);
-			If(Magnitude Of(Velocity Of(Event Player)) < 10);
+			"Arm Primary Fire once it has been released"
+			Event Player.K = Event Player.K == True || Is Button Held(Event Player, Button(Primary Fire)) == False;
+			If(Magnitude Of(Velocity Of(Event Player)) < 10 || (Event Player.K == True && Is Button Held(Event Player, Button(
+				Primary Fire)) == True));
 				"Explode"
 				Event Player.J = True;
 				Event Player.K = Position Of(Event Player);
-				Play Effect(All Players(All Teams), Bad Explosion, Color(Orange), Event Player.K, 10);
-				Play Effect(All Players(All Teams), Good Explosion, Color(Yellow), Event Player.K, 10);
-				Play Effect(All Players(All Teams), Ring Explosion, Color(Orange), Event Player.K, 12);
+				Play Effect(All Players(All Teams), Bad Explosion, Color(Orange), Event Player.K, 12);
+				Play Effect(All Players(All Teams), Good Explosion, Color(Yellow), Event Player.K, 12);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(Orange), Event Player.K, 14);
 				Play Effect(All Players(All Teams), Explosion Sound, Color(White), Event Player.K, 200);
 				Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Event Player.K, 200);
 				"Explosion Damage"
-				Damage(Filtered Array(Players Within Radius(Event Player.K, 10, All Teams, Surfaces And All Barriers),
-					Current Array Element != Event Player && Is Dummy Bot(Current Array Element) == False), Event Player, 200);
+				Damage(Filtered Array(Players Within Radius(Event Player.K, 12, All Teams, Surfaces And All Barriers),
+					Current Array Element != Event Player), Event Player, 200);
 				Event Player.perkDuration = 0;
 				Event Player.perkActivated = False;
 			End;
 			Wait(0.050, Ignore Condition);
 		End;
 		Stop Forcing Throttle(Event Player);
+		Clear Status(Event Player, Burning);
 		Set Move Speed(Event Player, 100);
-		Allow Button(Event Player, Button(Primary Fire));
+		Set Primary Fire Enabled(Event Player, True);
 		Set Ability 1 Enabled(Event Player, True);
 		Set Ability 2 Enabled(Event Player, True);
 		Set Melee Enabled(Event Player, True);
