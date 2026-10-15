@@ -690,6 +690,10 @@ rule("Roll The Dice")
 				Small Message(Event Player, Custom String("You rerolled your perk."));
 				"let the rerolled perk's rule set perkName before announcing it"
 				Wait(0.016, Ignore Condition);
+				"a rerolled Sorcerer's Jackpot only lasts 60 seconds"
+				If(Event Player.diceRoll == 102);
+					Event Player.perkDuration = 60;
+				End;
 				If(Current Game Mode == Game Mode(Deathmatch));
 					Small Message(Event Player, Custom String("{0}{1} rolled {2}", Hero Icon String(Hero Of(Event Player)), Event Player,
 						Event Player.perkName));
@@ -5164,7 +5168,7 @@ rule("102: Sorcerer's Jackpot")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 254;
 		"Fever Begin"
-		disabled Event Player.diceReroll = 102;
+		Event Player.diceReroll = 102;
 		Set Move Speed(Event Player, 275);
 		Set Damage Received(Event Player, 70);
 		Set Damage Dealt(Event Player, 140);
