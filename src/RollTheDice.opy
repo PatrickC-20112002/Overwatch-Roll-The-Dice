@@ -63,7 +63,7 @@ rule("Global Setup: Favourite Perk, Perk Total, AD TEXT")
 		End;
 		"banned favourite perks and total number of perks"
 		Global.bannedFav = Array(64, 65, 86, 97, 102, 105, 46, 118, 134, 145);
-		Global.perkTotal = 152;
+		Global.perkTotal = 153;
 		"AD TEXT"
 		Create HUD Text(All Players(All Teams), Custom String("ROLL THE DICE {0} {1} {2}", Server Load, Server Load Average,
 			Server Load Peak), Null, Null, Left, 1, Color(Sky Blue), Null, Null, Visible To Sort Order String and Color,
@@ -634,7 +634,7 @@ rule("Roll The Dice")
 		Else;
 			"If the player has no favourite perk selected, roll a normal random perk"
 			Event Player.diceRoll = Random Integer(1, Global.perkTotal);
-			disabled Event Player.diceRoll = 149;
+			disabled Event Player.diceRoll = 145;
 		End;
 		"announce the roll, after the perk's rule has set perkName"
 		Wait(0.016, Ignore Condition);
@@ -7819,6 +7819,13 @@ rule("145: Spirit Bomb")
 		Create Effect(All Players(All Teams), Sphere, Color(Sky Blue), Update Every Frame(Event Player.O), Event Player.L,
 			Visible To Position and Radius);
 		Event Player.H[5] = Last Created Entity;
+		"white core and sparkles, both scale with the bomb"
+		Create Effect(All Players(All Teams), Sphere, Color(White), Update Every Frame(Event Player.O), Event Player.L * 0.600,
+			Visible To Position and Radius);
+		Event Player.H[7] = Last Created Entity;
+		Create Effect(All Players(All Teams), Sparkles, Color(White), Update Every Frame(Event Player.O), Event Player.L * 1.100,
+			Visible To Position and Radius);
+		Event Player.H[8] = Last Created Entity;
 		"Grow Spirit Bomb"
 		Chase Player Variable Over Time(Event Player, L, 6, 0.600, Destination and Duration);
 		Wait(0.600, Ignore Condition);
@@ -7840,6 +7847,8 @@ rule("145: Spirit Bomb")
 		If(Event Player.perkActivated == True && Event Player.diceRoll == 145);
 			Event Player.perkDuration = 60;
 			Stop Chasing Player Variable(Event Player, perkDuration);
+			"the bomb slowly grows as it gathers energy"
+			Chase Player Variable Over Time(Event Player, L, 9, 60, Destination and Duration);
 		End;
 		"Resolve HUD"
 		Create Progress Bar HUD Text(Event Player, Event Player.G, Custom String("Resolve"), Top, 5, Color(Sky Blue), Color(White),
@@ -7958,6 +7967,14 @@ rule("145: Spirit Bomb")
 					Event Player.I = 0;
 					Play Effect(Event Player, Buff Impact Sound, Color(White), Eye Position(Event Player), 200);
 				End;
+			End;
+			"Energy Gathering, once per second"
+			If(Round To Integer(Event Player.perkDuration * 20, To Nearest) % 20 == 0);
+				Play Effect(All Players(All Teams), Good Pickup Effect, Color(Sky Blue), Event Player.O + Direction From Angles(Random Real(0,
+					360), Random Real(-30, 60)) * (Event Player.L + 4), 2);
+				Play Effect(All Players(All Teams), Good Pickup Effect, Color(Sky Blue), Event Player.O + Direction From Angles(Random Real(0,
+					360), Random Real(-30, 60)) * (Event Player.L + 4), 2);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(White), Event Player.O, Event Player.L + 2);
 			End;
 			"Preparation Timer"
 			Event Player.perkDuration -= 0.050;
@@ -8086,6 +8103,8 @@ rule("145: Spirit Bomb")
 			Event Player.H[6] = Last Text ID;
 			"Throw Spirit Bomb"
 			Chase Player Variable Over Time(Event Player, O, Event Player.G, 1.500, Destination and Duration);
+			Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.O, 6);
+			Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Event Player.O, 200);
 			Wait(0.450, Ignore Condition);
 			Destroy In-World Text(Event Player.H[6]);
 			Event Player.H[6] = 0;
@@ -8109,8 +8128,10 @@ rule("145: Spirit Bomb")
 			Stop Chasing Player Variable(Event Player, O);
 			Event Player.O = Event Player.G;
 			"Spirit Bomb Impact"
-			Destroy Effect(Event Player.H[5]);
-			Event Player.H[5] = 0;
+			"the bomb swells into the blast, it fades out before the perk ends"
+			Chase Player Variable Over Time(Event Player, L, 40, 0.200, Destination and Duration);
+			Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.G, 20);
+			Play Effect(All Players(All Teams), Ring Explosion, Color(Turquoise), Event Player.G, 35);
 			Play Effect(All Players(All Teams), Good Explosion, Color(Sky Blue), Event Player.G, 40);
 			Play Effect(All Players(All Teams), Bad Explosion, Color(Sky Blue), Event Player.G, 35);
 			Play Effect(All Players(All Teams), Ring Explosion, Color(Sky Blue), Event Player.G, 55);
@@ -8144,6 +8165,9 @@ rule("145: Spirit Bomb")
 			Wait(0.100, Ignore Condition);
 			"Extended Dice Cooldown"
 			disabled Event Player.K.diceCooldown = 30;
+			"Spirit Bomb Fade"
+			Chase Player Variable Over Time(Event Player, L, 0, 0.600, Destination and Duration);
+			Wait(0.600, Ignore Condition);
 			"End Spirit Bomb"
 			Event Player.perkDuration = 0;
 			Event Player.perkActivated = False;
@@ -8155,6 +8179,8 @@ rule("145: Spirit Bomb")
 		Destroy Icon(Event Player.H[3]);
 		Destroy Effect(Event Player.H[5]);
 		Destroy In-World Text(Event Player.H[6]);
+		Destroy Effect(Event Player.H[7]);
+		Destroy Effect(Event Player.H[8]);
 		"Remove Dummy"
 		Stop Facing(Event Player.H[4]);
 		Stop Accelerating(Event Player.H[4]);
@@ -8810,5 +8836,116 @@ rule("152: Soul Punisher")
 		Event Player.L = 0;
 		Event Player.M = 0;
 		Event Player.N = 0;
+	}
+}
+
+rule("153: Devil's Bullet")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 153;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Custom Color(40, 110, 255, 255);
+		Event Player.perkName = Custom String("Devil's Bullet");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 20;
+		"G = bullets fired, H = players hit (bullet 7: the devil's target), I = where the bullet stops, J = effect IDs, K = loop index"
+		Event Player.G = 0;
+		Big Message(Event Player, Custom String("Press Interact to shoot. 7 bullets, the last belongs to the devil."));
+		"bullets 1 to 6. the timer is caught with 0.1s left, so expiry still fires the 7th but a stolen or replaced perk does not"
+		While(Event Player.G < 6 && Event Player.perkActivated == True && Event Player.diceRoll == 153 && Event Player.perkDuration > 0.100);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 153 || Event Player.perkDuration <= 0.100 || (Is Button Held(Event Player, Button(Interact)) == True && Is Alive(Event Player) == True), 999999);
+			If(Event Player.perkActivated == True && Event Player.diceRoll == 153 && Event Player.perkDuration > 0.100 && (Is Button Held(Event Player, Button(Interact)) == True && Is Alive(Event Player) == True));
+				"the bullet always travels the full 200m, through walls and players"
+				Event Player.I = Eye Position(Event Player) + Facing Direction Of(Event Player) * 200;
+				"pierce: every living opponent within 1m of the bullet's path"
+				Event Player.H = Filtered Array(All Living Players(Opposite Team Of(Team Of(Event Player))), Current Array Element != Event Player
+					&& Dot Product(Position Of(Current Array Element) + Vector(0, 1, 0) - Eye Position(Event Player), Facing Direction Of(Event Player)) >= 0 && Dot Product(Position Of(Current Array Element) + Vector(0, 1, 0) - Eye Position(Event Player), Facing Direction Of(Event Player)) <= Distance Between(Eye Position(Event Player), Event Player.I) && Distance Between(Position Of(Current Array Element) + Vector(0, 1, 0), Eye Position(Event Player) + Facing Direction Of(Event Player) * Dot Product(Position Of(Current Array Element) + Vector(0, 1, 0) - Eye Position(Event Player), Facing Direction Of(Event Player))) <= 1);
+				Damage(Event Player.H, Event Player, 150);
+				Event Player.G += 1;
+				"magic circles in front of the muzzle, below eye level so they do not blind the shooter: 1, 1, 2, 2, 3, 4 for bullets 1 to 6"
+				Event Player.J = Empty Array;
+				For Player Variable(Event Player, K, 0, Event Player.G <= 2 ? 1 : (Event Player.G <= 4 ? 2 : (Event Player.G == 5 ? 3 : 4)), 1);
+					Create Effect(All Players(All Teams), Sphere, Color(Blue), Eye Position(Event Player) + Facing Direction Of(Event Player) * (1.500 + Event Player.K * 0.700) - Vector(0, 0.400, 0), 0.400, None);
+					Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+					Create Effect(All Players(All Teams), Orb, Color(Aqua), Eye Position(Event Player) + Facing Direction Of(Event Player) * (1.500 + Event Player.K * 0.700) - Vector(0, 0.400, 0), 0.250, None);
+					Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+				End;
+				"the bullet"
+				Create Beam Effect(All Players(All Teams), Good Beam, Eye Position(Event Player) + Facing Direction Of(Event Player) * 1.500 - Vector(0, 0.400, 0), Event Player.I, Color(Sky Blue), None);
+				Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+				"small blue hit on every opponent pierced"
+				For Player Variable(Event Player, K, 0, Count Of(Event Player.H), 1);
+					Play Effect(All Players(All Teams), Bad Explosion, Color(Blue), Eye Position(Event Player.H[Event Player.K]), 1);
+				End;
+				Play Effect(All Players(All Teams), Explosion Sound, Color(White), Eye Position(Event Player), 60);
+				Small Message(Event Player, Custom String("Bullet {0} of 7", Event Player.G));
+				"short gaps that end early if time is nearly up"
+				Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 153 || Event Player.perkDuration <= 0.100, 0.250);
+				For Player Variable(Event Player, K, 0, Count Of(Event Player.J), 1);
+					Destroy Effect(Event Player.J[Event Player.K]);
+				End;
+				Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 153 || Event Player.perkDuration <= 0.100, 0.250);
+				"one bullet per press"
+				Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 153 || Event Player.perkDuration <= 0.100 || Is Button Held(Event Player, Button(Interact)) == False, 999999);
+			End;
+		End;
+		"after six bullets, the 7th fires on the next press, or by itself as time runs out"
+		If(Event Player.G == 6 && Event Player.perkActivated == True && Event Player.diceRoll == 153 && Event Player.perkDuration > 0.100);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 153 || Event Player.perkDuration <= 0.100 || (Is Button Held(Event Player, Button(Interact)) == True && Is Alive(Event Player) == True), 999999);
+		End;
+		"bullet 7 only fires while the perk is still this player's Devil's Bullet, never after it was stolen, infected or replaced"
+		If(Event Player.perkActivated == True && Event Player.diceRoll == 153);
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+			"the devil chooses any living player, the shooter included, and the bullet lands at once"
+			Event Player.H = Random Value In Array(All Living Players(All Teams));
+			If(Event Player.H != Null);
+				Damage(Event Player.H, Event Player.H == Event Player ? Null : Event Player, 300);
+				Big Message(All Players(All Teams), Custom String("The devil's bullet chooses {0} {1}", Hero Icon String(Hero Of(Event Player.H)),
+					Event Player.H));
+				"five large magic circles in front of the shooter, below eye level, and a cyan flash at the far end"
+				Event Player.J = Empty Array;
+				For Player Variable(Event Player, K, 0, 5, 1);
+					Create Effect(All Players(All Teams), Sphere, Color(Blue), Eye Position(Event Player) + Facing Direction Of(Event Player) * (2 + Event Player.K) - Vector(0, 0.400, 0), 0.700 + Event Player.K * 0.100, None);
+					Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+					Create Effect(All Players(All Teams), Orb, Color(Aqua), Eye Position(Event Player) + Facing Direction Of(Event Player) * (2 + Event Player.K) - Vector(0, 0.400, 0), 0.400 + Event Player.K * 0.080, None);
+					Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+				End;
+				Play Effect(All Players(All Teams), Good Explosion, Color(Aqua), Eye Position(Event Player) + Facing Direction Of(Event Player) * 6 - Vector(0, 0.400, 0), 1);
+				"the bullet comes out of a portal behind the victim, wherever they are. if the devil chose the shooter, it comes from behind them"
+				Create Effect(All Players(All Teams), Sphere, Color(Blue), Eye Position(Event Player.H) - Facing Direction Of(Event Player.H) * 3 + Vector(0, 0.500,
+					0), 1, None);
+				Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+				Create Beam Effect(All Players(All Teams), Good Beam, Eye Position(Event Player.H) - Facing Direction Of(Event Player.H) * 3 + Vector(0, 0.500, 0),
+					Eye Position(Event Player.H), Color(Sky Blue), None);
+				Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+				"dark blue impact with a red accent"
+				Play Effect(All Players(All Teams), Bad Explosion, Color(Blue), Eye Position(Event Player.H), 3);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(Sky Blue), Position Of(Event Player.H), 9);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(Red), Position Of(Event Player.H), 5);
+				Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Position Of(Event Player.H), 200);
+				Play Effect(All Players(All Teams), Explosion Sound, Color(White), Eye Position(Event Player), 200);
+				Wait(0.500, Ignore Condition);
+				For Player Variable(Event Player, K, 0, Count Of(Event Player.J), 1);
+					Destroy Effect(Event Player.J[Event Player.K]);
+				End;
+			End;
+		End;
+		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.I = 0;
+		Event Player.J = 0;
+		Event Player.K = 0;
 	}
 }
