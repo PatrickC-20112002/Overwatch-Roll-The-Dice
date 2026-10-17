@@ -9,6 +9,7 @@ variables
 		5: hamonOrbKiller
 		6: hamonOrbActive
 		7: hamonOrbEffect
+		8: favouriteChance
 
 	player:
 		0: perkName
@@ -61,7 +62,9 @@ rule("Global Setup: Favourite Perk, Perk Total, AD TEXT")
 		Else;
 			Global.favPerkEnabled = False;
 		End;
-		"banned favourite perks and total number of perks"
+		"favourite roll chance (1 in _), read once here because a Workshop Setting may only be referenced once"
+		Global.favouriteChance = Workshop Setting Integer(Custom String("Favourite Perk"), Custom String("Favourite Roll Chance (1 in _ chance)"), 5, 1, 10, 0);
+		"rare favourite perks (half the normal favourite chance) and total number of perks"
 		Global.bannedFav = Array(64, 65, 86, 97, 102, 105, 46, 118, 134, 145);
 		Global.perkTotal = 153;
 		"AD TEXT"
@@ -146,9 +149,13 @@ rule("Int Select")
 			Color(White), Visible To and String, Default Visibility);
 		Modify Player Variable(Event Player, favouriteHudText, Append To Array, Last Text ID);
 		"favourite selection current perk"
+		"the line under the perk name shows its favourite chance, rare favourites in orange"
 		Create HUD Text(Event Player, Custom String("({2}/{1}) {0}", Event Player.perkName, Global.perkTotal, Event Player.diceRoll),
-			Custom String(""), Custom String("", Round To Integer(Event Player.perkDuration, Up)), Top, 2, Event Player.perkColour,
-			Event Player.perkColour, Color(White), Visible To Sort Order String and Color, Default Visibility);
+			Event Player.diceRoll == 0 ? Custom String("Every perk has an equal chance") : (Array Contains(Global.bannedFav,
+			Event Player.diceRoll) ? Custom String("RARE FAVOURITE - 1 in {0} chance", Global.favouriteChance * (Custom String("{0}", Event Player) != Custom String("Zamasu") ? 2 : 1)) : Custom String(
+			"Favourite chance - 1 in {0}", Global.favouriteChance)), Custom String(""), Top, 2, Event Player.perkColour, Event Player.diceRoll != 0
+			&& Array Contains(Global.bannedFav, Event Player.diceRoll) ? Color(Orange) : Color(White), Color(White),
+			Visible To Sort Order String and Color, Default Visibility);
 		Modify Player Variable(Event Player, favouriteHudText, Append To Array, Last Text ID);
 		"favourite selection perk description, disabled for now"
 		disabled Create HUD Text(Event Player, Custom String("{0}", Event Player.perkDescription), Null, Null, Top, 3, Color(White), Null, Null,
@@ -242,11 +249,6 @@ rule("Confirm Fav")
 
 	actions
 	{
-		"stop banned favourite perks from being selected"
-		If(Array Contains(Global.bannedFav, Event Player.diceRoll) == True);
-			Small Message(Event Player, Custom String("This perk cannot be picked as favourite!"));
-			Abort;
-		End;
 		"save selected favourite perk"
 		Play Effect(Event Player, Buff Impact Sound, Color(White), Position Of(Event Player), 200);
 		Event Player.favouritePerkRoll = Event Player.diceRoll;
@@ -321,9 +323,13 @@ rule("Repick Favourite Perk")
 			Color(White), Visible To and String, Default Visibility);
 		Modify Player Variable(Event Player, favouriteHudText, Append To Array, Last Text ID);
 		"favourite selection current perk"
+		"the line under the perk name shows its favourite chance, rare favourites in orange"
 		Create HUD Text(Event Player, Custom String("({2}/{1}) {0}", Event Player.perkName, Global.perkTotal, Event Player.diceRoll),
-			Custom String(""), Custom String("", Round To Integer(Event Player.perkDuration, Up)), Top, 2, Event Player.perkColour,
-			Event Player.perkColour, Color(White), Visible To Sort Order String and Color, Default Visibility);
+			Event Player.diceRoll == 0 ? Custom String("Every perk has an equal chance") : (Array Contains(Global.bannedFav,
+			Event Player.diceRoll) ? Custom String("RARE FAVOURITE - 1 in {0} chance", Global.favouriteChance * (Custom String("{0}", Event Player) != Custom String("Zamasu") ? 2 : 1)) : Custom String(
+			"Favourite chance - 1 in {0}", Global.favouriteChance)), Custom String(""), Top, 2, Event Player.perkColour, Event Player.diceRoll != 0
+			&& Array Contains(Global.bannedFav, Event Player.diceRoll) ? Color(Orange) : Color(White), Color(White),
+			Visible To Sort Order String and Color, Default Visibility);
 		Modify Player Variable(Event Player, favouriteHudText, Append To Array, Last Text ID);
 		"favourite selection perk description, disabled for now"
 		disabled Create HUD Text(Event Player, Custom String("{0}", Event Player.perkDescription), Null, Null, Top, 3, Color(White), Null, Null,
@@ -495,6 +501,11 @@ rule("Final Blows: Soul Score and Dice Cooldown")
 				Event Player.diceCooldown = 0;
 			End;
 		End;
+		"Sorcerer's Jackpot: final blows refill 10 seconds of energy during the jackpot"
+		If(Event Player.diceRoll == 102 && Event Player.perkActivated == True && Event Player.K == True);
+			Event Player.perkDuration = Min(254, Event Player.perkDuration + 10);
+			Small Message(Event Player, Custom String("+10 energy"));
+		End;
 	}
 }
 
@@ -593,15 +604,11 @@ rule("Roll The Dice")
 			"Dice Reroll"
 			If(Random Integer(0, 1) == 0);
 				Event Player.diceRoll = Event Player.diceReroll;
-				"clear before waiting so a rerolled perk can set diceReroll again"
-				Event Player.diceReroll = 0;
+				"clear before waiting so a rerolled perk can set diceReroll again. -1 tells Sorcerer's Jackpot it was rerolled"
+				Event Player.diceReroll = Event Player.diceRoll == 102 ? -1 : 0;
 				Small Message(Event Player, Custom String("You rerolled your perk."));
 				"let the rerolled perk's rule set perkName before announcing it"
 				Wait(0.016, Ignore Condition);
-				"a rerolled Sorcerer's Jackpot only lasts 60 seconds"
-				If(Event Player.diceRoll == 102);
-					Event Player.perkDuration = 60;
-				End;
 				If(Current Game Mode == Game Mode(Deathmatch));
 					Small Message(Event Player, Custom String("{0}{1} rolled {2}", Hero Icon String(Hero Of(Event Player)), Event Player,
 						Event Player.perkName));
@@ -619,8 +626,9 @@ rule("Roll The Dice")
 		End;
 		"If the player has a favourite perk selected, roll the favourite chance"
 		If(Event Player.favouritePerkRoll != 0);
-			Event Player.favouriteChanceRoll = Random Integer(1, Workshop Setting Integer(Custom String("Favourite Perk"), Custom String(
-				"Favourite Roll Chance (1 in _ chance)"), 5, 1, 10, 0));
+			"rare favourites are half as likely, except for Zamasu (an easter egg for a friend)"
+			Event Player.favouriteChanceRoll = Random Integer(1, Global.favouriteChance * (Array Contains(Global.bannedFav,
+				Event Player.favouritePerkRoll) && Custom String("{0}", Event Player) != Custom String("Zamasu") ? 2 : 1));
 			"If the favourite chance succeeds, force the favourite perk"
 			If(Event Player.favouriteChanceRoll == 1);
 				Event Player.diceRoll = Event Player.favouritePerkRoll;
@@ -5057,7 +5065,79 @@ rule("102: Sorcerer's Jackpot")
 		Event Player.perkColour = Color(Turquoise);
 		Event Player.perkName = Custom String("Sorcerer's Jackpot");
 		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.perkDuration = 254;
+		"G = aura, H = in-world energy bar, I = HUD energy bar, J = spins used then natural end, K = jackpot phase, L = spin result, M = first reel"
+		Event Player.K = False;
+		If(Event Player.diceReroll == -1);
+			"rerolled jackpot: no gamble, 60 seconds of energy"
+			Event Player.diceReroll = 0;
+			Event Player.perkDuration = 60;
+			Event Player.K = True;
+		Else;
+			"Idle Death Gamble: 5 automatic spins. I = reel HUD text, N = what the reels show"
+			Event Player.perkDuration = 22;
+			Event Player.J = 0;
+			Event Player.N = Custom String("? - ? - ?");
+			Create HUD Text(Event Player, Event Player.N, Custom String("IDLE DEATH GAMBLE - spin {0} of 5", Event Player.J), Null, Top, 1,
+				Color(Turquoise), Color(White), Null, Visible To Sort Order String and Color, Default Visibility);
+			Event Player.I = Last Text ID;
+			While(Event Player.J < 5 && Event Player.K == False && Event Player.perkActivated == True && Event Player.diceRoll == 102);
+				Event Player.J += 1;
+				"a spin always gets to finish"
+				Event Player.perkDuration = Max(Event Player.perkDuration, 4);
+				"jackpot 1 in 6, close 1 in 3, otherwise a miss"
+				Event Player.L = Random Integer(1, 6);
+				Event Player.M = Random Integer(1, 9);
+				"the reels stop one at a time"
+				Event Player.N = Custom String("{0} - ? - ?", Event Player.M);
+				Play Effect(Event Player, Buff Impact Sound, Color(White), Eye Position(Event Player), 100);
+				Wait(0.800, Ignore Condition);
+				Event Player.N = Custom String("{0} - {1} - ?", Event Player.M, Event Player.L <= 3 ? Event Player.M : (Event Player.M % 9) + 1);
+				Play Effect(Event Player, Buff Impact Sound, Color(White), Eye Position(Event Player), 100);
+				"two matching reels build suspense before the last one stops"
+				If(Event Player.L <= 3);
+					Play Effect(Event Player, Ring Explosion Sound, Color(White), Eye Position(Event Player), 100);
+					Wait(1.500, Ignore Condition);
+				Else;
+					Wait(0.800, Ignore Condition);
+				End;
+				Play Effect(Event Player, Buff Impact Sound, Color(White), Eye Position(Event Player), 100);
+				If(Event Player.L == 1);
+					Event Player.N = Custom String("{0} - {1} - {2}  JACKPOT!", Event Player.M, Event Player.M, Event Player.M);
+					Event Player.K = True;
+				Else If(Event Player.L <= 3);
+					Event Player.N = Custom String("{0} - {1} - {2}  Close!", Event Player.M, Event Player.M, (Event Player.M % 9) + 1);
+					Set Ultimate Charge(Event Player, Ultimate Charge Percent(Event Player) + 20);
+				Else;
+					Event Player.N = Custom String("{0} - {1} - {2}  Miss", Event Player.M, (Event Player.M % 9) + 1, ((Event Player.M + 1) % 9) + 1);
+					Set Ultimate Charge(Event Player, Ultimate Charge Percent(Event Player) + 10);
+				End;
+				Wait(1.500, Ignore Condition);
+			End;
+			Destroy HUD Text(Event Player.I);
+			Event Player.I = 0;
+			Event Player.N = 0;
+			"no jackpot: bust. also stops here if the perk was lost while gambling"
+			If(Event Player.K == False || Event Player.perkActivated == False || Event Player.diceRoll != 102);
+				If(Event Player.perkActivated == True && Event Player.diceRoll == 102);
+					Big Message(Event Player, Custom String("Bust!"));
+					Event Player.perkDuration = 0;
+					Event Player.perkActivated = False;
+				End;
+				Event Player.J = 0;
+				Event Player.K = 0;
+				Event Player.L = 0;
+				Event Player.M = 0;
+				Abort;
+			End;
+			Event Player.perkDuration = 254;
+		End;
+		"JACKPOT celebration"
+		Big Message(All Players(All Teams), Custom String("{0} {1} HIT THE JACKPOT!", Hero Icon String(Hero Of(Event Player)), Event Player));
+		Play Effect(All Players(All Teams), Good Explosion, Color(Turquoise), Event Player, 4);
+		Play Effect(All Players(All Teams), Good Explosion, Color(Yellow), Event Player, 3);
+		Play Effect(All Players(All Teams), Ring Explosion, Color(Yellow), Event Player, 8);
+		Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Event Player, 200);
+		Communicate(Event Player, Emote Up);
 		"Fever Begin"
 		Event Player.diceReroll = 102;
 		Set Move Speed(Event Player, 275);
@@ -5075,7 +5155,15 @@ rule("102: Sorcerer's Jackpot")
 		Event Player.H = Last Text ID;
 		Create Effect(All Players(All Teams), Bad Aura, Color(Turquoise), Event Player, 3, Visible To Position and Radius);
 		Event Player.G = Last Created Entity;
-		Wait Until(Event Player.perkActivated == False, 999999);
+		"running out is caught with 0.1s left, so it can be told apart from death or interruption"
+		Wait Until(Event Player.perkActivated == False || Event Player.perkDuration <= 0.100, 999999);
+		Event Player.J = Event Player.perkActivated == True && Event Player.diceRoll == 102;
+		If(Event Player.J == True);
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+			Big Message(All Players(All Teams), Custom String("{0} {1}'s jackpot has run out.", Hero Icon String(Hero Of(Event Player)),
+				Event Player));
+		End;
 		Stop All Heal Over Time(Event Player);
 		Set Move Speed(Event Player, 100);
 		Set Damage Dealt(Event Player, 100);
@@ -5088,8 +5176,21 @@ rule("102: Sorcerer's Jackpot")
 		Event Player.H = 0;
 		Destroy Progress Bar HUD Text(Event Player.I);
 		Event Player.I = 0;
-		disabled Wait Until(Event Player.diceCooldown > 0, 999999);
-		disabled Event Player.diceCooldown = Event Player.diceCooldown + 30;
+		"scratch variables are cleared before the burnout wait so a perk rolled during burnout is not affected"
+		Event Player.K = 0;
+		Event Player.L = 0;
+		Event Player.M = 0;
+		"burnout for 5 seconds after running out, cut short by death or a new perk"
+		If(Event Player.J == True && Is Alive(Event Player) == True);
+			Event Player.J = 0;
+			Set Move Speed(Event Player, 75);
+			Set Damage Dealt(Event Player, 75);
+			Wait Until(Event Player.perkActivated == True || Is Dead(Event Player) == True, 5);
+			Set Move Speed(Event Player, 100);
+			Set Damage Dealt(Event Player, 100);
+		Else;
+			Event Player.J = 0;
+		End;
 	}
 }
 
@@ -5105,20 +5206,17 @@ rule("102: Sorcerer's Jackpot Energy Drain")
 	conditions
 	{
 		Event Player.diceRoll == 102;
+		"only during the jackpot, not the gamble"
+		Event Player.K == True;
 	}
 
 	actions
 	{
 		Abort If(Event Player.isSelectingFavourite == True);
-		If(Custom String("{0}", Event Player) == Custom String("Zamasu"));
-			Event Player.perkDuration -= Event Healing / 15;
-		Else;
-			Event Player.perkDuration -= Event Healing / 5;
-			disabled End;
-			If(Event Player.perkDuration < 0);
-				Event Player.perkDuration = 0;
-			End;
-		End;
+		"healing costs energy. stops just above 0 so the main rule can tell running out from death or interruption"
+		Event Player.perkDuration = Max(0.050, Event Player.perkDuration - Event Healing / 5);
+		"drain cue"
+		Play Effect(All Players(All Teams), Bad Pickup Effect, Color(Turquoise), Event Player, 0.500);
 	}
 }
 
