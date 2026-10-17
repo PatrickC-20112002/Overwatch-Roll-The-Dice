@@ -9,6 +9,7 @@ variables
 		5: hamonOrbKiller
 		6: hamonOrbActive
 		7: hamonOrbEffect
+		8: favouriteChance
 
 	player:
 		0: perkName
@@ -27,6 +28,7 @@ variables
 		21: stolenDiceName
 		22: stolenDiceRoll
 		23: stolenPlr
+		24: soulScore
 		25: perkDescription
 		26: isSelectingFavourite
 		27: favouritePerkRoll
@@ -37,13 +39,15 @@ variables
 		32: durationModifier
 		33: showHeroIconEsp
 		34: showPerkEsp
-		35: consecutiveDiceRoll
+		35: diceReroll
 		36: rtdWorldText
 		37: hudLoopIndex
 		38: favouriteChanceRoll
+		39: O
+		40: virusTargets
 }
 
-rule("Enable/Disable Favourite Perk")
+rule("Global Setup: Favourite Perk, Perk Total, AD TEXT")
 {
 	event
 	{
@@ -52,10 +56,54 @@ rule("Enable/Disable Favourite Perk")
 
 	actions
 	{
+		"favourite perk setting"
 		If(Workshop Setting Toggle(Custom String("Favourite Perk"), Custom String("Favourite Perk Enabled?"), True, 0) == True);
 			Global.favPerkEnabled = True;
 		Else;
 			Global.favPerkEnabled = False;
+		End;
+		"favourite roll chance (1 in _), read once here because a Workshop Setting may only be referenced once"
+		Global.favouriteChance = Workshop Setting Integer(Custom String("Favourite Perk"), Custom String("Favourite Roll Chance (1 in _ chance)"), 5, 1, 10, 0);
+		"rare favourite perks (half the normal favourite chance) and total number of perks"
+		Global.bannedFav = Array(64, 65, 86, 97, 102, 105, 46, 118, 134, 145, 151, 154);
+		Global.perkTotal = 157;
+		"AD TEXT"
+		Create HUD Text(All Players(All Teams), Custom String("ROLL THE DICE {0} {1} {2}", Server Load, Server Load Average,
+			Server Load Peak), Null, Null, Left, 1, Color(Sky Blue), Null, Null, Visible To Sort Order String and Color,
+			Default Visibility);
+		Create HUD Text(All Players(All Teams), Null, Null, Custom String("Created by MarkedDerp"), Left, 2, Null, Null, Color(Rose),
+			Visible To Sort Order String and Color, Default Visibility);
+		"one line per item to save text entities"
+		Create HUD Text(All Players(All Teams), Null, Null, Custom String("WORKSHOP CODE: 4C92C"), Left, 3, Null, Null, Color(Orange),
+			Visible To Sort Order String and Color, Default Visibility);
+		Create HUD Text(All Players(All Teams), Null, Null, Custom String("CURRENT VERSION: V2.5"), Left, 4, Null, Null, Color(Aqua),
+			Visible To Sort Order String and Color, Default Visibility);
+		"each viewer sees their own hidden final blow count"
+		Create HUD Text(All Players(All Teams), Null, Null, Custom String("FINAL BLOWS: {0}", Local Player.soulScore), Left, 5, Null, Null,
+			Color(Red), Visible To Sort Order String and Color, Default Visibility);
+		disabled Create HUD Text(All Players(All Teams), Null, Null, Custom String("CURRENT EXPERIMENT: Higher Fav Perk chance"), Left, 6,
+			Null, Null, Color(Gray), Visible To Sort Order String and Color, Default Visibility);
+		"shared RTD HUD: one text per line for the whole lobby, each viewer sees their own values"
+		"main perk text"
+		Create HUD Text(Filtered Array(All Players(All Teams), Current Array Element.isSelectingFavourite == False), Custom String("{0}",
+			Local Player.perkName), Custom String("Duration:"), Custom String("{0}", Round To Integer(Local Player.perkDuration, Up)), Top,
+			0, Local Player.perkColour, Local Player.perkColour, Color(White), Visible To Sort Order String and Color, Default Visibility);
+		"dice cooldown text, only for players on cooldown"
+		Create HUD Text(Filtered Array(All Players(All Teams), Current Array Element.diceCooldown > 0
+			&& Current Array Element.isSelectingFavourite == False), Null, Custom String("Dice Cooldown"), Custom String("{0}",
+			Round To Integer(Local Player.diceCooldown, Up)), Right, 0, Null, Local Player.perkColour, Color(White),
+			Visible To Sort Order String and Color, Default Visibility);
+		"favourite perk permanent text"
+		If(Global.favPerkEnabled == True);
+			Create HUD Text(Filtered Array(All Players(All Teams), Current Array Element.isSelectingFavourite == False), Custom String(
+				"Favourite Perk"), Custom String("{0}", Local Player.favouritePerkRoll), Custom String("{0}", Local Player.favouritePerkName),
+				Left, 0, Local Player.favouritePerkColour, Color(White), Local Player.favouritePerkColour,
+				Visible To Sort Order String and Color, Default Visibility);
+		End;
+		"duration modifier, one line to match the ad text"
+		Create HUD Text(Filtered Array(All Players(All Teams), Current Array Element.isSelectingFavourite == False), Null, Null,
+			Custom String("DURATION MODIFIER: x{0}", Local Player.durationModifier), Left, 9, Null, Null, Color(Orange),
+			Visible To Sort Order String and Color, Default Visibility);
 	}
 }
 
@@ -64,20 +112,6 @@ disabled rule("- Select Fav -")
 	event
 	{
 		Ongoing - Global;
-	}
-}
-
-rule("Banned Favourite Perks + Total Number of Perks")
-{
-	event
-	{
-		Ongoing - Global;
-	}
-
-	actions
-	{
-		Global.bannedFav = Array(64, 65, 86, 97, 102, 105, 46, 118, 134, 145);
-		Global.perkTotal = 145;
 	}
 }
 
@@ -93,6 +127,7 @@ rule("Int Select")
 	conditions
 	{
 		Global.favPerkEnabled == True;
+		Is Dummy Bot(Event Player) == False;
 	}
 
 	actions
@@ -114,9 +149,13 @@ rule("Int Select")
 			Color(White), Visible To and String, Default Visibility);
 		Modify Player Variable(Event Player, favouriteHudText, Append To Array, Last Text ID);
 		"favourite selection current perk"
+		"the line under the perk name shows its favourite chance, rare favourites in orange"
 		Create HUD Text(Event Player, Custom String("({2}/{1}) {0}", Event Player.perkName, Global.perkTotal, Event Player.diceRoll),
-			Custom String(""), Custom String("", Round To Integer(Event Player.perkDuration, Up)), Top, 2, Event Player.perkColour,
-			Event Player.perkColour, Color(White), Visible To Sort Order String and Color, Default Visibility);
+			Event Player.diceRoll == 0 ? Custom String("Every perk has an equal chance") : (Array Contains(Global.bannedFav,
+			Event Player.diceRoll) ? Custom String("RARE FAVOURITE - 1 in {0} chance", Global.favouriteChance * (Custom String("{0}", Event Player) != Custom String("Zamasu") || Event Player.diceRoll != 102 ? 2 : 1)) : Custom String(
+			"Favourite chance - 1 in {0}", Global.favouriteChance)), Custom String(""), Top, 2, Event Player.perkColour, Event Player.diceRoll != 0
+			&& Array Contains(Global.bannedFav, Event Player.diceRoll) ? Color(Orange) : Color(White), Color(White),
+			Visible To Sort Order String and Color, Default Visibility);
 		Modify Player Variable(Event Player, favouriteHudText, Append To Array, Last Text ID);
 		"favourite selection perk description, disabled for now"
 		disabled Create HUD Text(Event Player, Custom String("{0}", Event Player.perkDescription), Null, Null, Top, 3, Color(White), Null, Null,
@@ -135,7 +174,7 @@ rule("Int Select")
 	}
 }
 
-rule("Increase Fav")
+rule("Favourite Menu Scroll")
 {
 	event
 	{
@@ -147,7 +186,8 @@ rule("Increase Fav")
 	conditions
 	{
 		Event Player.isSelectingFavourite == True;
-		Is Button Held(Event Player, Button(Primary Fire)) == True;
+		(Is Button Held(Event Player, Button(Primary Fire)) || Is Button Held(Event Player, Button(Secondary Fire)) || Is Button Held(
+			Event Player, Button(Ability 1)) || Is Button Held(Event Player, Button(Ability 2))) == True;
 		Global.favPerkEnabled == True;
 		Event Player.favouriteHudText != Empty Array;
 	}
@@ -155,100 +195,37 @@ rule("Increase Fav")
 	actions
 	{
 		Play Effect(Event Player, Buff Impact Sound, Color(White), Position Of(Event Player), 200);
-		If(Event Player.diceRoll == Global.perkTotal);
-			Event Player.diceRoll = 0;
+		"Primary: next"
+		If(Is Button Held(Event Player, Button(Primary Fire)) == True);
+			If(Event Player.diceRoll == Global.perkTotal);
+				Event Player.diceRoll = 0;
+			Else;
+				Event Player.diceRoll += 1;
+			End;
+			Wait(0.050, Ignore Condition);
+		"Secondary: previous"
+		Else If(Is Button Held(Event Player, Button(Secondary Fire)) == True);
+			If(Event Player.diceRoll == 0);
+				Event Player.diceRoll = Global.perkTotal;
+			Else;
+				Event Player.diceRoll -= 1;
+			End;
+			Wait(0.050, Ignore Condition);
+		"Ability 2: forward 5"
+		Else If(Is Button Held(Event Player, Button(Ability 2)) == True);
+			Event Player.diceRoll += 5;
+			If(Event Player.diceRoll > Global.perkTotal);
+				Event Player.diceRoll = 0;
+			End;
+			Wait(0.100, Ignore Condition);
+		"Ability 1: back 5"
 		Else;
-			Event Player.diceRoll += 1;
+			Event Player.diceRoll -= 5;
+			If(Event Player.diceRoll < 0);
+				Event Player.diceRoll = Global.perkTotal;
+			End;
+			Wait(0.100, Ignore Condition);
 		End;
-		Wait(0.050, Ignore Condition);
-		Loop If Condition Is True;
-	}
-}
-
-rule("Increase Fav by 5")
-{
-	event
-	{
-		Ongoing - Each Player;
-		All;
-		All;
-	}
-
-	conditions
-	{
-		Event Player.isSelectingFavourite == True;
-		Is Button Held(Event Player, Button(Ability 2)) == True;
-		Global.favPerkEnabled == True;
-		Event Player.favouriteHudText != Empty Array;
-	}
-
-	actions
-	{
-		Play Effect(Event Player, Buff Impact Sound, Color(White), Position Of(Event Player), 200);
-		Event Player.diceRoll += 5;
-		If(Event Player.diceRoll > Global.perkTotal);
-			Event Player.diceRoll = 0;
-		End;
-		Wait(0.100, Ignore Condition);
-		Loop If Condition Is True;
-	}
-}
-
-rule("Decrease Fav")
-{
-	event
-	{
-		Ongoing - Each Player;
-		All;
-		All;
-	}
-
-	conditions
-	{
-		Event Player.isSelectingFavourite == True;
-		Is Button Held(Event Player, Button(Secondary Fire)) == True;
-		Global.favPerkEnabled == True;
-		Event Player.favouriteHudText != Empty Array;
-	}
-
-	actions
-	{
-		Play Effect(Event Player, Buff Impact Sound, Color(White), Position Of(Event Player), 200);
-		If(Event Player.diceRoll == 0);
-			Event Player.diceRoll = Global.perkTotal;
-		Else;
-			Event Player.diceRoll -= 1;
-		End;
-		Wait(0.050, Ignore Condition);
-		Loop If Condition Is True;
-	}
-}
-
-rule("Decrease Fav by 5")
-{
-	event
-	{
-		Ongoing - Each Player;
-		All;
-		All;
-	}
-
-	conditions
-	{
-		Event Player.isSelectingFavourite == True;
-		Is Button Held(Event Player, Button(Ability 1)) == True;
-		Global.favPerkEnabled == True;
-		Event Player.favouriteHudText != Empty Array;
-	}
-
-	actions
-	{
-		Play Effect(Event Player, Buff Impact Sound, Color(White), Position Of(Event Player), 200);
-		Event Player.diceRoll -= 5;
-		If(Event Player.diceRoll < 0);
-			Event Player.diceRoll = Global.perkTotal;
-		End;
-		Wait(0.100, Ignore Condition);
 		Loop If Condition Is True;
 	}
 }
@@ -272,11 +249,6 @@ rule("Confirm Fav")
 
 	actions
 	{
-		"stop banned favourite perks from being selected"
-		If(Array Contains(Global.bannedFav, Event Player.diceRoll) == True);
-			Small Message(Event Player, Custom String("This perk cannot be picked as favourite!"));
-			Abort;
-		End;
 		"save selected favourite perk"
 		Play Effect(Event Player, Buff Impact Sound, Color(White), Position Of(Event Player), 200);
 		Event Player.favouritePerkRoll = Event Player.diceRoll;
@@ -327,11 +299,6 @@ rule("Repick Favourite Perk")
 
 	actions
 	{
-		"destroy stored RTD HUD texts"
-		For Player Variable(Event Player, hudLoopIndex, 0, Count Of(Event Player.rtdHudText), 1);
-			Destroy HUD Text(Event Player.rtdHudText[Event Player.hudLoopIndex]);
-		End;
-		Event Player.rtdHudText = Empty Array;
 		"destroy stored RTD in-world texts"
 		For Player Variable(Event Player, hudLoopIndex, 0, Count Of(Event Player.rtdWorldText), 1);
 			Destroy In-World Text(Event Player.rtdWorldText[Event Player.hudLoopIndex]);
@@ -356,9 +323,13 @@ rule("Repick Favourite Perk")
 			Color(White), Visible To and String, Default Visibility);
 		Modify Player Variable(Event Player, favouriteHudText, Append To Array, Last Text ID);
 		"favourite selection current perk"
+		"the line under the perk name shows its favourite chance, rare favourites in orange"
 		Create HUD Text(Event Player, Custom String("({2}/{1}) {0}", Event Player.perkName, Global.perkTotal, Event Player.diceRoll),
-			Custom String(""), Custom String("", Round To Integer(Event Player.perkDuration, Up)), Top, 2, Event Player.perkColour,
-			Event Player.perkColour, Color(White), Visible To Sort Order String and Color, Default Visibility);
+			Event Player.diceRoll == 0 ? Custom String("Every perk has an equal chance") : (Array Contains(Global.bannedFav,
+			Event Player.diceRoll) ? Custom String("RARE FAVOURITE - 1 in {0} chance", Global.favouriteChance * (Custom String("{0}", Event Player) != Custom String("Zamasu") || Event Player.diceRoll != 102 ? 2 : 1)) : Custom String(
+			"Favourite chance - 1 in {0}", Global.favouriteChance)), Custom String(""), Top, 2, Event Player.perkColour, Event Player.diceRoll != 0
+			&& Array Contains(Global.bannedFav, Event Player.diceRoll) ? Color(Orange) : Color(White), Color(White),
+			Visible To Sort Order String and Color, Default Visibility);
 		Modify Player Variable(Event Player, favouriteHudText, Append To Array, Last Text ID);
 		"favourite selection perk description, disabled for now"
 		disabled Create HUD Text(Event Player, Custom String("{0}", Event Player.perkDescription), Null, Null, Top, 3, Color(White), Null, Null,
@@ -397,6 +368,7 @@ rule("Init")
 	conditions
 	{
 		(Event Player.isSelectingFavourite == False || Global.favPerkEnabled == False) == True;
+		Is Dummy Bot(Event Player) == False;
 	}
 
 	actions
@@ -414,30 +386,13 @@ rule("Init")
 			Event Player.durationModifier = 1;
 		End;
 		"reset stored text arrays"
-		Event Player.rtdHudText = Empty Array;
 		Event Player.rtdWorldText = Empty Array;
-		"main perk text"
-		Create HUD Text(Event Player, Custom String("{0}", Event Player.perkName, Round To Integer(Event Player.perkDuration, Up),
-			Event Player.diceRoll), Custom String("Duration:"), Custom String("{0}", Round To Integer(Event Player.perkDuration, Up)), Top,
-			0, Event Player.perkColour, Event Player.perkColour, Color(White), Visible To Sort Order String and Color, Default Visibility);
-		Modify Player Variable(Event Player, rtdHudText, Append To Array, Last Text ID);
-		"dice cooldown text"
-		Create HUD Text(Filtered Array(Event Player, Event Player.diceCooldown > 0), Null, Custom String("Dice Cooldown"), Custom String(
-			"{0}", Round To Integer(Event Player.diceCooldown, Up)), Right, 0, Null, Event Player.perkColour, Color(White),
-			Visible To Sort Order String and Color, Default Visibility);
-		Modify Player Variable(Event Player, rtdHudText, Append To Array, Last Text ID);
 		"spectator perk text"
 		Create In-World Text(Filtered Array(All Players(All Teams), Current Array Element.showPerkEsp == True), Custom String("{0}: {1}",
 			Event Player.perkName, Round To Integer(Event Player.perkDuration, Up)), Update Every Frame(Eye Position(Event Player)
 			+ Vector(0, 1, 0)), 1.500, Clip Against Surfaces, Visible To Position String and Color, Event Player.perkColour,
 			Visible Always);
 		Modify Player Variable(Event Player, rtdWorldText, Append To Array, Last Text ID);
-		"favourite perk permanent text"
-		Skip If(Global.favPerkEnabled == False, 2);
-		Create HUD Text(Event Player, Custom String("Favourite Perk"), Custom String("{0}", Event Player.favouritePerkRoll), Custom String(
-			"{0}", Event Player.favouritePerkName), Left, 0, Event Player.favouritePerkColour, Color(White),
-			Event Player.favouritePerkColour, Visible To Sort Order String and Color, Default Visibility);
-		Modify Player Variable(Event Player, rtdHudText, Append To Array, Last Text ID);
 		"hero icon spectator text"
 		Create In-World Text(Filtered Array(All Players(All Teams), Current Array Element.showHeroIconEsp == True), Custom String("{0}",
 			Hero Icon String(Hero Of(Event Player))), Update Every Frame(Eye Position(Event Player) + Vector(0, 1.500, 0)), 1.500,
@@ -446,14 +401,6 @@ rule("Init")
 		"perk description text, disabled for now"
 		disabled Create HUD Text(Event Player, Custom String("{0}", Event Player.perkDescription), Null, Null, Left, 4, Color(White), Null, Null,
 			Visible To Sort Order String and Color, Default Visibility);
-		"duration modifier label"
-		Create HUD Text(Event Player, Null, Null, Custom String("Duration Modifier"), Left, 9, Null, Null, Color(White),
-			Visible To Sort Order String and Color, Default Visibility);
-		Modify Player Variable(Event Player, rtdHudText, Append To Array, Last Text ID);
-		"duration modifier value"
-		Create HUD Text(Event Player, Null, Null, Custom String("x{0}", Event Player.durationModifier), Left, 10, Null, Null, Color(
-			Orange), Visible To Sort Order String and Color, Default Visibility);
-		Modify Player Variable(Event Player, rtdHudText, Append To Array, Last Text ID);
 		"show starting reminder"
 		Wait(1, Ignore Condition);
 		Big Message(Event Player, Custom String("Press Interact To Roll The Dice"));
@@ -506,35 +453,6 @@ rule("Trait Activated = False")
 	}
 }
 
-rule("AD TEXT")
-{
-	event
-	{
-		Ongoing - Global;
-	}
-
-	actions
-	{
-		Create HUD Text(All Players(All Teams), Custom String("ROLL THE DICE {0} {1} {2}", Server Load, Server Load Average,
-			Server Load Peak), Null, Null, Left, 1, Color(Sky Blue), Null, Null, Visible To Sort Order String and Color,
-			Default Visibility);
-		Create HUD Text(All Players(All Teams), Null, Null, Custom String("Created by MarkedDerp"), Left, 2, Null, Null, Color(Rose),
-			Visible To Sort Order String and Color, Default Visibility);
-		Create HUD Text(All Players(All Teams), Null, Null, Custom String("WORKSHOP CODE"), Left, 3, Null, Null, Color(White),
-			Visible To Sort Order String and Color, Default Visibility);
-		Create HUD Text(All Players(All Teams), Null, Null, Custom String("4C92C"), Left, 4, Null, Null, Color(Orange),
-			Visible To Sort Order String and Color, Default Visibility);
-		Create HUD Text(All Players(All Teams), Null, Null, Custom String("CURRENT VERSION"), Left, 5, Null, Null, Color(White),
-			Visible To Sort Order String and Color, Default Visibility);
-		Create HUD Text(All Players(All Teams), Null, Null, Custom String("V2.4"), Left, 6, Null, Null, Color(Aqua),
-			Visible To Sort Order String and Color, Default Visibility);
-		disabled Create HUD Text(All Players(All Teams), Null, Null, Custom String("CURRENT EXPERIMENT"), Left, 7, Null, Null, Color(White),
-			Visible To Sort Order String and Color, Default Visibility);
-		disabled Create HUD Text(All Players(All Teams), Null, Null, Custom String("Higher Fav Perk chance"), Left, 8, Null, Null, Color(Gray),
-			Visible To Sort Order String and Color, Default Visibility);
-	}
-}
-
 rule("Bring Down Cooldown")
 {
 	event
@@ -558,6 +476,36 @@ rule("Bring Down Cooldown")
 		Event Player.perkName = Custom String("Press Interact to Roll the Dice");
 		Event Player.perkColour = Color(Orange);
 		Event Player.perkDescription = Custom String("The dice is ready!");
+	}
+}
+
+rule("Final Blows: Soul Score and Dice Cooldown")
+{
+	event
+	{
+		Player Dealt Final Blow;
+		All;
+		All;
+	}
+
+	actions
+	{
+		"hidden final blow count, works before the match starts when the real score does not"
+		If(Victim != Event Player);
+			Event Player.soulScore += 1;
+		End;
+		"lower dice cooldown, no refund for kills made while a perk is active"
+		If(Event Player.diceCooldown > 0 && Event Player.perkActivated == False);
+			Event Player.diceCooldown = Max(0, Event Player.diceCooldown - 15);
+			If(Event Player.diceCooldown < 0);
+				Event Player.diceCooldown = 0;
+			End;
+		End;
+		"Sorcerer's Jackpot: final blows refill 10 seconds of energy during the jackpot"
+		If(Event Player.diceRoll == 102 && Event Player.perkActivated == True && Event Player.K == True);
+			Event Player.perkDuration = Min(254, Event Player.perkDuration + 10);
+			Small Message(Event Player, Custom String("+10 energy"));
+		End;
 	}
 }
 
@@ -597,8 +545,13 @@ rule("Apply Pending Duration Modifier")
 		Event Player.durationModifier != 1;
 		Event Player.perkActivated == True;
 		Event Player.perkDuration > 0;
+		"duration perks"
 		Event Player.diceRoll != 126;
 		Event Player.diceRoll != 127;
+		"ban hammer"
+		Event Player.diceRoll != 46;
+		"spirit bomb"
+		Event Player.diceRoll != 145;
 	}
 
 	actions
@@ -610,7 +563,6 @@ rule("Apply Pending Duration Modifier")
 		Else;
 			Small Message(Event Player, Custom String("Perk Duration /{0}", 1 / Event Player.durationModifier));
 		End;
-		Wait(3, Ignore Condition);
 		Event Player.durationModifier = 1;
 	}
 }
@@ -648,11 +600,15 @@ rule("Roll The Dice")
 		disabled Wait Until(Is Alive(Event Player), 99999);
 		Play Effect(Event Player, Buff Explosion Sound, Color(White), Position Of(Event Player), 200);
 		Event Player.perkActivated = True;
-		If(Event Player.consecutiveDiceRoll != 0);
-			"Consecutive Dice Roll"
+		If(Event Player.diceReroll != 0);
+			"Dice Reroll"
 			If(Random Integer(0, 1) == 0);
-				Event Player.diceRoll = Event Player.consecutiveDiceRoll;
+				Event Player.diceRoll = Event Player.diceReroll;
+				"clear before waiting so a rerolled perk can set diceReroll again. -1 tells Sorcerer's Jackpot it was rerolled"
+				Event Player.diceReroll = Event Player.diceRoll == 102 ? -1 : 0;
 				Small Message(Event Player, Custom String("You rerolled your perk."));
+				"let the rerolled perk's rule set perkName before announcing it"
+				Wait(0.016, Ignore Condition);
 				If(Current Game Mode == Game Mode(Deathmatch));
 					Small Message(Event Player, Custom String("{0}{1} rolled {2}", Hero Icon String(Hero Of(Event Player)), Event Player,
 						Event Player.perkName));
@@ -664,15 +620,16 @@ rule("Roll The Dice")
 					Small Message(All Players(Opposite Team Of(Team Of(Event Player))), Custom String("{0}{1} rolled a perk.", Hero Icon String(
 						Hero Of(Event Player)), Event Player, Event Player.perkName));
 				End;
-				Event Player.consecutiveDiceRoll = 0;
 				Abort;
 			End;
-			Event Player.consecutiveDiceRoll = 0;
+			Event Player.diceReroll = 0;
 		End;
 		"If the player has a favourite perk selected, roll the favourite chance"
 		If(Event Player.favouritePerkRoll != 0);
-			Event Player.favouriteChanceRoll = Random Integer(1, Workshop Setting Integer(Custom String("Favourite Perk"), Custom String(
-				"Favourite Roll Chance (1 in _ chance)"), 10, 1, 10, 0));
+			"rare favourites are half as likely, except Sorcerer's Jackpot for Zamasu (an easter egg for a friend)"
+			Event Player.favouriteChanceRoll = Random Integer(1, Global.favouriteChance * (Array Contains(Global.bannedFav,
+				Event Player.favouritePerkRoll) && (Custom String("{0}", Event Player) != Custom String("Zamasu") || Event Player.favouritePerkRoll
+				!= 102) ? 2 : 1));
 			"If the favourite chance succeeds, force the favourite perk"
 			If(Event Player.favouriteChanceRoll == 1);
 				Event Player.diceRoll = Event Player.favouritePerkRoll;
@@ -686,7 +643,20 @@ rule("Roll The Dice")
 		Else;
 			"If the player has no favourite perk selected, roll a normal random perk"
 			Event Player.diceRoll = Random Integer(1, Global.perkTotal);
-			disabled Event Player.diceRoll = 145;
+			disabled Event Player.diceRoll = 138;
+		End;
+		"announce the roll, after the perk's rule has set perkName"
+		Wait(0.016, Ignore Condition);
+		If(Current Game Mode == Game Mode(Deathmatch));
+			Small Message(Event Player, Custom String("{0}{1} rolled {2}", Hero Icon String(Hero Of(Event Player)), Event Player,
+				Event Player.perkName));
+			Small Message(Filtered Array(All Players(All Teams), Current Array Element != Event Player), Custom String(
+				"{0}{1} rolled the dice.", Hero Icon String(Hero Of(Event Player)), Event Player, Event Player.perkName));
+		Else;
+			Small Message(All Players(Team Of(Event Player)), Custom String("{0}{1} rolled {2}", Hero Icon String(Hero Of(Event Player)),
+				Event Player, Event Player.perkName));
+			Small Message(All Players(Opposite Team Of(Team Of(Event Player))), Custom String("{0}{1} rolled a perk.", Hero Icon String(
+				Hero Of(Event Player)), Event Player, Event Player.perkName));
 		End;
 	}
 }
@@ -778,34 +748,14 @@ rule("2: Toxic")
 		Event Player.perkDuration = 10;
 		Create Effect(All Players(All Teams), Cloud, Color(Green), Event Player, 8, Visible To Position and Radius);
 		Event Player.G = Last Created Entity;
-		Wait Until(Event Player.perkActivated == False, 999999);
+		"damage loop, merged from 2: Toxic Damage"
+		While(Event Player.perkActivated == True && Event Player.diceRoll == 2);
+			Wait(0.250, Ignore Condition);
+			Damage(Filtered Array(Players Within Radius(Event Player, 10, All Teams, Surfaces), Current Array Element != Event Player),
+				Event Player, 16);
+		End;
 		Destroy Effect(Event Player.G);
 		Event Player.G = 0;
-	}
-}
-
-rule("2: Toxic Damage")
-{
-	event
-	{
-		Ongoing - Each Player;
-		All;
-		All;
-	}
-
-	conditions
-	{
-		Event Player.diceRoll == 2;
-		disabled Event Player.perkActivated == True;
-	}
-
-	actions
-	{
-		Abort If(Event Player.isSelectingFavourite == True);
-		Wait(0.250, Ignore Condition);
-		Damage(Filtered Array(Players Within Radius(Event Player, 10, All Teams, Surfaces), Current Array Element != Event Player),
-			Event Player, 16);
-		Loop If Condition Is True;
 	}
 }
 
@@ -1718,8 +1668,21 @@ rule("27: High Gravity")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 10;
 		Set Gravity(Event Player, 500);
-		Wait Until(Event Player.perkActivated == False, 999999);
+		Set Move Speed(Event Player, 65);
+		"hard landings: landing after a fast fall (more than about 2-3m) knocks you down and deals 25 damage"
+		While(Event Player.perkActivated == True && Event Player.diceRoll == 27);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 27 || (Is In Air(Event Player) == True && Vertical Speed Of(
+				Event Player) < -15), 999999);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 27 || Is On Ground(Event Player) == True, 999999);
+			If(Event Player.perkActivated == True && Event Player.diceRoll == 27 && Is On Ground(Event Player) == True && Is Alive(Event Player)
+				== True);
+				Set Status(Event Player, Null, Knocked Down, 1);
+				Damage(Event Player, Null, 25);
+				Play Effect(All Players(All Teams), Debuff Impact Sound, Color(White), Position Of(Event Player), 100);
+			End;
+		End;
 		Set Gravity(Event Player, 100);
+		Set Move Speed(Event Player, 100);
 	}
 }
 
@@ -1744,8 +1707,11 @@ rule("28: Frail")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 10;
 		Set Damage Received(Event Player, 175);
+		"as much knockback as the Workshop allows, values above the cap are clamped"
+		Set Knockback Received(Event Player, 1000);
 		Wait Until(Event Player.perkActivated == False, 999999);
 		Set Damage Received(Event Player, 100);
+		Set Knockback Received(Event Player, 100);
 	}
 }
 
@@ -2239,12 +2205,15 @@ rule("41: No Cooldowns")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 10;
 		While(Event Player.perkActivated == True);
-			Set Ability Charge(Event Player, Button(Ability 1), 0);
+			"same method as One Trick: reset each cooldown and top up its charges"
 			Set Ability Cooldown(Event Player, Button(Ability 1), 0);
-			Set Ability Cooldown(Event Player, Button(Ability 2), 0);
-			Set Ability Cooldown(Event Player, Button(Secondary Fire), 0);
-			Set Ability Cooldown(Event Player, Button(Jump), 0);
 			Set Ability Charge(Event Player, Button(Ability 1), 1000);
+			Set Ability Cooldown(Event Player, Button(Ability 2), 0);
+			Set Ability Charge(Event Player, Button(Ability 2), 1000);
+			Set Ability Cooldown(Event Player, Button(Secondary Fire), 0);
+			Set Ability Charge(Event Player, Button(Secondary Fire), 1000);
+			Set Ability Cooldown(Event Player, Button(Jump), 0);
+			Set Ability Charge(Event Player, Button(Jump), 1000);
 			Wait(0.050, Ignore Condition);
 		End;
 	}
@@ -2307,7 +2276,49 @@ rule("43: Auto Dodge")
 		Create Effect(All Players(All Teams), Light Shaft, Color(White), Position Of(Event Player), 3, None);
 		Wait(1, Ignore Condition);
 		Destroy Effect(Last Created Entity);
-		Wait Until(Event Player.perkActivated == False, 999999);
+		"Interact force dodge, merged from 43: Auto Dodge Force Dodge"
+		While(Event Player.perkActivated == True && Event Player.diceRoll == 43);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 43 || Is Button Held(Event Player, Button(Interact))
+				== True, 999999);
+			If(Event Player.perkActivated == True && Event Player.diceRoll == 43 && Is Button Held(Event Player, Button(Interact)) == True
+				&& Count Of(Filtered Array(All Living Players(All Teams), Current Array Element != Event Player)) > 0);
+				Event Player.perkDuration -= 3;
+				If(Event Player.perkDuration < 0);
+					Event Player.perkDuration = 0;
+				End;
+				Clear Status(Event Player, Hacked);
+				Clear Status(Event Player, Burning);
+				Clear Status(Event Player, Knocked Down);
+				Clear Status(Event Player, Asleep);
+				Clear Status(Event Player, Frozen);
+				Clear Status(Event Player, Rooted);
+				Clear Status(Event Player, Stunned);
+				"Dodge Move"
+				Event Player.H = 0;
+				Event Player.H = Ray Cast Hit Position(Position Of(Player Closest To Reticle(Event Player, All Teams)), Position Of(
+					Player Closest To Reticle(Event Player, All Teams)) + Direction From Angles(Horizontal Facing Angle Of(
+					Player Closest To Reticle(Event Player, All Teams)), 0) * -3, All Players(All Teams), Player Closest To Reticle(Event Player,
+					All Teams), True);
+				Event Player.I = Position Of(Event Player);
+				Stop All Damage Over Time(Event Player);
+				Set Status(Event Player, Event Player, Phased Out, 0.250);
+				Play Effect(All Players(All Teams), Bad Explosion, Color(White), Event Player, 5);
+				Play Effect(Array(Event Player, Player Closest To Reticle(Event Player, All Teams)), Ring Explosion Sound, Color(White),
+					Position Of(Event Player), 200);
+				Start Forcing Player Position(Event Player, Event Player.I, True);
+				Start Facing(Event Player, Direction Towards(Eye Position(Event Player), Eye Position(Player Closest To Reticle(Event Player,
+					All Teams))), 10000, To World, Direction and Turn Rate);
+				Chase Player Variable Over Time(Event Player, I, Event Player.H, 0.500, Destination and Duration);
+				Wait(0.500, Ignore Condition);
+				Stop Chasing Player Variable(Event Player, I);
+				Stop Forcing Player Position(Event Player);
+				Teleport(Event Player, Nearest Walkable Position(Event Player));
+				Stop Facing(Event Player);
+			End;
+			"wait for Interact to be released before the next force dodge"
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 43 || Is Button Held(Event Player, Button(Interact))
+				== False, 999999);
+		End;
 		Destroy Effect(Event Player.G);
 		Event Player.G = 0;
 		Stop Forcing Player Outlines(Event Player, All Players(All Teams));
@@ -2376,60 +2387,6 @@ rule("43: Auto Dodge Dodge")
 			Horizontal Facing Angle Of(Attacker), 0) * -5, All Players(All Teams), Attacker, True));
 		Teleport(Event Player, Nearest Walkable Position(Event Player));
 		Set Facing(Event Player, Direction Towards(Eye Position(Event Player), Eye Position(Attacker)), To World);
-	}
-}
-
-rule("43: Auto Dodge Force Dodge")
-{
-	event
-	{
-		Ongoing - Each Player;
-		All;
-		All;
-	}
-
-	conditions
-	{
-		Event Player.diceRoll == 43;
-		Is Button Held(Event Player, Button(Interact)) == True;
-	}
-
-	actions
-	{
-		Abort If(Event Player.isSelectingFavourite == True);
-		Abort If(Count Of(Filtered Array(All Living Players(All Teams), Current Array Element != Event Player)) == 0);
-		Event Player.perkDuration -= 3;
-		If(Event Player.perkDuration < 0);
-			Event Player.perkDuration = 0;
-		End;
-		Clear Status(Event Player, Hacked);
-		Clear Status(Event Player, Burning);
-		Clear Status(Event Player, Knocked Down);
-		Clear Status(Event Player, Asleep);
-		Clear Status(Event Player, Frozen);
-		Clear Status(Event Player, Rooted);
-		Clear Status(Event Player, Stunned);
-		"Dodge Move"
-		Event Player.H = 0;
-		Event Player.H = Ray Cast Hit Position(Position Of(Player Closest To Reticle(Event Player, All Teams)), Position Of(
-			Player Closest To Reticle(Event Player, All Teams)) + Direction From Angles(Horizontal Facing Angle Of(
-			Player Closest To Reticle(Event Player, All Teams)), 0) * -3, All Players(All Teams), Player Closest To Reticle(Event Player,
-			All Teams), True);
-		Event Player.I = Position Of(Event Player);
-		Stop All Damage Over Time(Event Player);
-		Set Status(Event Player, Event Player, Phased Out, 0.250);
-		Play Effect(All Players(All Teams), Bad Explosion, Color(White), Event Player, 5);
-		Play Effect(Array(Event Player, Player Closest To Reticle(Event Player, All Teams)), Ring Explosion Sound, Color(White),
-			Position Of(Event Player), 200);
-		Start Forcing Player Position(Event Player, Event Player.I, True);
-		Start Facing(Event Player, Direction Towards(Eye Position(Event Player), Eye Position(Player Closest To Reticle(Event Player,
-			All Teams))), 10000, To World, Direction and Turn Rate);
-		Chase Player Variable Over Time(Event Player, I, Event Player.H, 0.500, Destination and Duration);
-		Wait(0.500, Ignore Condition);
-		Stop Chasing Player Variable(Event Player, I);
-		Stop Forcing Player Position(Event Player);
-		Teleport(Event Player, Nearest Walkable Position(Event Player));
-		Stop Facing(Event Player);
 	}
 }
 
@@ -2668,7 +2625,7 @@ rule("47: Random Hero")
 		Wait Until(Is Alive(Event Player), 99999);
 		Start Forcing Player To Be Hero(Event Player, Event Player.H);
 		Stop Forcing Player To Be Hero(Event Player);
-		Wait(1, Ignore Condition);
+		Wait(0.500, Ignore Condition);
 		Skip If(Event Player.J != True, 1);
 		Set Player Health(Event Player, Max Health(Event Player) * 0.150);
 		Set Ultimate Charge(Event Player, Event Player.G);
@@ -4379,34 +4336,6 @@ rule("85: Sent to Heaven")
 	}
 }
 
-rule("86: Heart Virus Spread")
-{
-	event
-	{
-		Ongoing - Each Player;
-		All;
-		All;
-	}
-
-	conditions
-	{
-		Event Player.diceRoll == 86;
-	}
-
-	actions
-	{
-		Abort If(Event Player.isSelectingFavourite == True);
-		disabled Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams, Surfaces And Enemy Barriers),
-			Current Array Element != Event Player).diceRoll = 86;
-		Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams, Surfaces And Enemy Barriers),
-			Current Array Element != Event Player && Current Array Element.diceRoll != 86).perkActivated = True;
-		Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams, Surfaces And Enemy Barriers),
-			Current Array Element != Event Player && Current Array Element.diceRoll != 86).diceRoll = 86;
-		Wait(0.250, Ignore Condition);
-		Loop If Condition Is True;
-	}
-}
-
 rule("86: Heart Virus")
 {
 	event
@@ -4448,11 +4377,19 @@ rule("86: Heart Virus")
 				Set Move Speed(Event Player, 35);
 				Set Aim Speed(Event Player, 25);
 			End;
-			Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams, Surfaces And Enemy Barriers),
-				Current Array Element != Event Player && Current Array Element.diceRoll != 86).perkActivated = True;
-			Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams, Surfaces And Enemy Barriers),
-				Current Array Element != Event Player && Current Array Element.diceRoll != 86).diceRoll = 86;
-			Wait(0.250, Ignore Condition);
+			"find new targets once per tick"
+			Event Player.virusTargets = Filtered Array(Players Within Radius(Event Player, Event Player.virusSpread, All Teams,
+				Surfaces And Enemy Barriers), Current Array Element != Event Player && Current Array Element.diceRoll != 86 && Is Dummy Bot(
+				Current Array Element) == False);
+			"end any active perk first so its normal cleanup runs"
+			Filtered Array(Event Player.virusTargets, Current Array Element.perkActivated == True).perkDuration = 0;
+			Filtered Array(Event Player.virusTargets, Current Array Element.perkActivated == True).perkActivated = False;
+			Wait(0.100, Ignore Condition);
+			"infect living targets"
+			Event Player.virusTargets = Filtered Array(Event Player.virusTargets, Is Alive(Current Array Element) == True);
+			Event Player.virusTargets.perkActivated = True;
+			Event Player.virusTargets.diceRoll = 86;
+			Wait(0.150, Ignore Condition);
 		End;
 		Set Aim Speed(Event Player, 100);
 		Set Move Speed(Event Player, 100);
@@ -4467,6 +4404,7 @@ rule("86: Heart Virus")
 		Destroy Effect(Event Player.virusCloud);
 		Event Player.virusCloud = 0;
 		Event Player.virusSpread = 0;
+		Event Player.virusTargets = 0;
 	}
 }
 
@@ -4557,31 +4495,29 @@ rule("88: Constant Nullification")
 		Event Player.H = Last Created Entity;
 		While(Event Player.perkActivated == True);
 			Set Slow Motion(100);
-			Cancel Primary Action(Filtered Array(Players Within Radius(Event Player, Event Player.I, All Teams, Off),
-				Current Array Element != Event Player));
-			Stop All Heal Over Time(Players Within Radius(Event Player, Event Player.I, All Teams, Off));
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Hacked);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Burning);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Knocked Down);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Asleep);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Frozen);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Rooted);
-			Clear Status(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Stunned);
-			Stop All Damage Over Time(Players Within Radius(Event Player, Event Player.I, All Teams, Off));
-			Set Aim Speed(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Move Speed(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Damage Received(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Damage Dealt(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Gravity(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Knockback Dealt(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Set Knockback Received(Players Within Radius(Event Player, Event Player.I, All Teams, Off), 100);
-			Stop Modifying Hero Voice Lines(Players Within Radius(Event Player, Event Player.I, All Teams, Off));
-			Stop Scaling Player(Players Within Radius(Event Player, Event Player.I, All Teams, Off));
-			Filtered Array(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Current Array Element != Event Player)
-				.perkDuration = 0;
-			Filtered Array(Players Within Radius(Event Player, Event Player.I, All Teams, Off), Current Array Element != Event Player)
-				.perkActivated = False;
-			Set Environment Credit Player(Event Player, Players Within Radius(Event Player, Event Player.I, All Teams, Off));
+			Event Player.J = Players Within Radius(Event Player, Event Player.I, All Teams, Off);
+			Cancel Primary Action(Filtered Array(Event Player.J, Current Array Element != Event Player));
+			Stop All Heal Over Time(Event Player.J);
+			Clear Status(Event Player.J, Hacked);
+			Clear Status(Event Player.J, Burning);
+			Clear Status(Event Player.J, Knocked Down);
+			Clear Status(Event Player.J, Asleep);
+			Clear Status(Event Player.J, Frozen);
+			Clear Status(Event Player.J, Rooted);
+			Clear Status(Event Player.J, Stunned);
+			Stop All Damage Over Time(Event Player.J);
+			Set Aim Speed(Event Player.J, 100);
+			Set Move Speed(Event Player.J, 100);
+			Set Damage Received(Event Player.J, 100);
+			Set Damage Dealt(Event Player.J, 100);
+			Set Gravity(Event Player.J, 100);
+			Set Knockback Dealt(Event Player.J, 100);
+			Set Knockback Received(Event Player.J, 100);
+			Stop Modifying Hero Voice Lines(Event Player.J);
+			Stop Scaling Player(Event Player.J);
+			Filtered Array(Event Player.J, Current Array Element != Event Player).perkDuration = 0;
+			Filtered Array(Event Player.J, Current Array Element != Event Player).perkActivated = False;
+			Set Environment Credit Player(Filtered Array(Event Player.J, Current Array Element != Event Player), Event Player);
 			Wait(0.250, Ignore Condition);
 		End;
 		Wait Until(Event Player.perkActivated == False, 999999);
@@ -4590,6 +4526,7 @@ rule("88: Constant Nullification")
 		Event Player.I = 0;
 		Event Player.G = 0;
 		Event Player.H = 0;
+		Event Player.J = 0;
 	}
 }
 
@@ -4806,11 +4743,14 @@ rule("93: Stole the Dice")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 20;
 		Event Player.stolenPlr = Null;
+		Event Player.stolenDiceRoll = 0;
 		disabled Event Player.G = True;
-		"search"
-		While(Event Player.diceRoll == 93 && Event Player.stolenPlr == Null);
+		"search, reading the victim's perk in the same tick it is picked"
+		While(Event Player.diceRoll == 93 && Event Player.stolenDiceRoll == 0);
 			Event Player.stolenPlr = Random Value In Array(Filtered Array(Filtered Array(All Players(All Teams),
-				Current Array Element.perkActivated == True), Current Array Element != Event Player));
+				Current Array Element.perkActivated == True), Current Array Element != Event Player && Current Array Element.diceRoll != 93));
+			Event Player.stolenDiceRoll = Event Player.stolenPlr.diceRoll;
+			Event Player.stolenDiceName = Event Player.stolenPlr.perkName;
 			Wait(0.250, Ignore Condition);
 		End;
 		Big Message(Event Player, Custom String("You stole the dice from..."));
@@ -4819,13 +4759,12 @@ rule("93: Stole the Dice")
 		disabled Event Player.stolenPlr = Random Value In Array(Filtered Array(Filtered Array(All Players(All Teams),
 			Current Array Element.perkActivated == True), Current Array Element != Event Player));
 		"no player"
-		If(Event Player.stolenPlr == Null);
+		If(Event Player.stolenDiceRoll == 0);
 			Big Message(Event Player, Custom String("Couldn't find a player!"));
 			Event Player.stolenPlr = 0;
+			Event Player.stolenDiceName = 0;
 			Abort;
 		End;
-		Event Player.stolenDiceRoll = Event Player.stolenPlr.diceRoll;
-		Event Player.stolenDiceName = Event Player.stolenPlr.perkName;
 		Big Message(Event Player.stolenPlr, Custom String("Perk stolen by {0}", Event Player));
 		Big Message(Event Player, Custom String("{0} from {1} {2}!", Event Player.stolenDiceName, Hero Icon String(Hero Of(
 			Event Player.stolenPlr)), Event Player.stolenPlr));
@@ -4834,8 +4773,11 @@ rule("93: Stole the Dice")
 		disabled Event Player.perkActivated = True;
 		Event Player.diceRoll = Event Player.stolenDiceRoll;
 		Wait(0.016, Ignore Condition);
-		Event Player.stolenPlr.perkDuration = 0;
-		Event Player.stolenPlr.perkActivated = False;
+		"only end the victim's perk if they still have the stolen one"
+		If(Event Player.stolenPlr.diceRoll == Event Player.stolenDiceRoll);
+			Event Player.stolenPlr.perkDuration = 0;
+			Event Player.stolenPlr.perkActivated = False;
+		End;
 		Event Player.stolenPlr = 0;
 		Event Player.stolenDiceRoll = 0;
 		Event Player.stolenDiceName = 0;
@@ -5143,9 +5085,81 @@ rule("102: Sorcerer's Jackpot")
 		Event Player.perkColour = Color(Turquoise);
 		Event Player.perkName = Custom String("Sorcerer's Jackpot");
 		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.perkDuration = 254;
+		"G = aura, H = in-world energy bar, I = HUD energy bar, J = spins used then natural end, K = jackpot phase, L = spin result, M = first reel"
+		Event Player.K = False;
+		If(Event Player.diceReroll == -1);
+			"rerolled jackpot: no gamble, 60 seconds of energy"
+			Event Player.diceReroll = 0;
+			Event Player.perkDuration = 60;
+			Event Player.K = True;
+		Else;
+			"Idle Death Gamble: 5 automatic spins. I = reel HUD text, N = what the reels show"
+			Event Player.perkDuration = 22;
+			Event Player.J = 0;
+			Event Player.N = Custom String("? - ? - ?");
+			Create HUD Text(Event Player, Event Player.N, Custom String("IDLE DEATH GAMBLE - spin {0} of 5", Event Player.J), Null, Top, 1,
+				Color(Turquoise), Color(White), Null, Visible To Sort Order String and Color, Default Visibility);
+			Event Player.I = Last Text ID;
+			While(Event Player.J < 5 && Event Player.K == False && Event Player.perkActivated == True && Event Player.diceRoll == 102);
+				Event Player.J += 1;
+				"a spin always gets to finish"
+				Event Player.perkDuration = Max(Event Player.perkDuration, 4);
+				"jackpot 1 in 6, close 1 in 3, otherwise a miss"
+				Event Player.L = Random Integer(1, 6);
+				Event Player.M = Random Integer(1, 9);
+				"the reels stop one at a time"
+				Event Player.N = Custom String("{0} - ? - ?", Event Player.M);
+				Play Effect(Event Player, Buff Impact Sound, Color(White), Eye Position(Event Player), 100);
+				Wait(0.800, Ignore Condition);
+				Event Player.N = Custom String("{0} - {1} - ?", Event Player.M, Event Player.L <= 3 ? Event Player.M : (Event Player.M % 9) + 1);
+				Play Effect(Event Player, Buff Impact Sound, Color(White), Eye Position(Event Player), 100);
+				"two matching reels build suspense before the last one stops"
+				If(Event Player.L <= 3);
+					Play Effect(Event Player, Ring Explosion Sound, Color(White), Eye Position(Event Player), 100);
+					Wait(1.500, Ignore Condition);
+				Else;
+					Wait(0.800, Ignore Condition);
+				End;
+				Play Effect(Event Player, Buff Impact Sound, Color(White), Eye Position(Event Player), 100);
+				If(Event Player.L == 1);
+					Event Player.N = Custom String("{0} - {1} - {2}  JACKPOT!", Event Player.M, Event Player.M, Event Player.M);
+					Event Player.K = True;
+				Else If(Event Player.L <= 3);
+					Event Player.N = Custom String("{0} - {1} - {2}  Close!", Event Player.M, Event Player.M, (Event Player.M % 9) + 1);
+					Set Ultimate Charge(Event Player, Ultimate Charge Percent(Event Player) + 20);
+				Else;
+					Event Player.N = Custom String("{0} - {1} - {2}  Miss", Event Player.M, (Event Player.M % 9) + 1, ((Event Player.M + 1) % 9) + 1);
+					Set Ultimate Charge(Event Player, Ultimate Charge Percent(Event Player) + 10);
+				End;
+				Wait(1.500, Ignore Condition);
+			End;
+			Destroy HUD Text(Event Player.I);
+			Event Player.I = 0;
+			Event Player.N = 0;
+			"no jackpot: bust. also stops here if the perk was lost while gambling"
+			If(Event Player.K == False || Event Player.perkActivated == False || Event Player.diceRoll != 102);
+				If(Event Player.perkActivated == True && Event Player.diceRoll == 102);
+					Big Message(Event Player, Custom String("Bust!"));
+					Event Player.perkDuration = 0;
+					Event Player.perkActivated = False;
+				End;
+				Event Player.J = 0;
+				Event Player.K = 0;
+				Event Player.L = 0;
+				Event Player.M = 0;
+				Abort;
+			End;
+			Event Player.perkDuration = 254;
+		End;
+		"JACKPOT celebration"
+		Big Message(All Players(All Teams), Custom String("{0} {1} HIT THE JACKPOT!", Hero Icon String(Hero Of(Event Player)), Event Player));
+		Play Effect(All Players(All Teams), Good Explosion, Color(Turquoise), Event Player, 4);
+		Play Effect(All Players(All Teams), Good Explosion, Color(Yellow), Event Player, 3);
+		Play Effect(All Players(All Teams), Ring Explosion, Color(Yellow), Event Player, 8);
+		Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Event Player, 200);
+		Communicate(Event Player, Emote Up);
 		"Fever Begin"
-		Event Player.consecutiveDiceRoll = 102;
+		Event Player.diceReroll = 102;
 		Set Move Speed(Event Player, 275);
 		Set Damage Received(Event Player, 70);
 		Set Damage Dealt(Event Player, 140);
@@ -5161,7 +5175,15 @@ rule("102: Sorcerer's Jackpot")
 		Event Player.H = Last Text ID;
 		Create Effect(All Players(All Teams), Bad Aura, Color(Turquoise), Event Player, 3, Visible To Position and Radius);
 		Event Player.G = Last Created Entity;
-		Wait Until(Event Player.perkActivated == False, 999999);
+		"running out is caught with 0.1s left, so it can be told apart from death or interruption"
+		Wait Until(Event Player.perkActivated == False || Event Player.perkDuration <= 0.100, 999999);
+		Event Player.J = Event Player.perkActivated == True && Event Player.diceRoll == 102;
+		If(Event Player.J == True);
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+			Big Message(All Players(All Teams), Custom String("{0} {1}'s jackpot has run out.", Hero Icon String(Hero Of(Event Player)),
+				Event Player));
+		End;
 		Stop All Heal Over Time(Event Player);
 		Set Move Speed(Event Player, 100);
 		Set Damage Dealt(Event Player, 100);
@@ -5174,8 +5196,21 @@ rule("102: Sorcerer's Jackpot")
 		Event Player.H = 0;
 		Destroy Progress Bar HUD Text(Event Player.I);
 		Event Player.I = 0;
-		disabled Wait Until(Event Player.diceCooldown > 0, 999999);
-		disabled Event Player.diceCooldown = Event Player.diceCooldown + 30;
+		"scratch variables are cleared before the burnout wait so a perk rolled during burnout is not affected"
+		Event Player.K = 0;
+		Event Player.L = 0;
+		Event Player.M = 0;
+		"burnout for 5 seconds after running out, cut short by death or a new perk"
+		If(Event Player.J == True && Is Alive(Event Player) == True);
+			Event Player.J = 0;
+			Set Move Speed(Event Player, 75);
+			Set Damage Dealt(Event Player, 75);
+			Wait Until(Event Player.perkActivated == True || Is Dead(Event Player) == True, 5);
+			Set Move Speed(Event Player, 100);
+			Set Damage Dealt(Event Player, 100);
+		Else;
+			Event Player.J = 0;
+		End;
 	}
 }
 
@@ -5191,20 +5226,17 @@ rule("102: Sorcerer's Jackpot Energy Drain")
 	conditions
 	{
 		Event Player.diceRoll == 102;
+		"only during the jackpot, not the gamble"
+		Event Player.K == True;
 	}
 
 	actions
 	{
 		Abort If(Event Player.isSelectingFavourite == True);
-		If(Custom String("{0}", Event Player) == Custom String("Zamasu"));
-			Event Player.perkDuration -= Event Healing / 15;
-		Else;
-			Event Player.perkDuration -= Event Healing / 5;
-			disabled End;
-			If(Event Player.perkDuration < 0);
-				Event Player.perkDuration = 0;
-			End;
-		End;
+		"healing costs energy. stops just above 0 so the main rule can tell running out from death or interruption"
+		Event Player.perkDuration = Max(0.050, Event Player.perkDuration - Event Healing / 5);
+		"drain cue"
+		Play Effect(All Players(All Teams), Bad Pickup Effect, Color(Turquoise), Event Player, 0.500);
 	}
 }
 
@@ -5921,6 +5953,7 @@ rule("116: Filled with: Perseverance")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 15;
 		Event Player.G = 0;
+		Event Player.J = 0;
 		Play Effect(Event Player, Explosion Sound, Color(White), Eye Position(Event Player), 200);
 		Play Effect(Event Player, Explosion Sound, Color(White), Eye Position(Event Player), 200);
 		Play Effect(Event Player, Explosion Sound, Color(White), Eye Position(Event Player), 200);
@@ -5928,35 +5961,25 @@ rule("116: Filled with: Perseverance")
 		Create Progress Bar HUD Text(Event Player, Event Player.G, Custom String("Perseverance"), Top, 5, Color(Purple), Color(White),
 			Visible To Values and Color, Default Visibility);
 		Event Player.H = Last Text ID;
+		"Buff Duration"
 		While(Event Player.perkActivated == True);
-			If(Event Player.G >= 100);
-				Event Player.G = 0;
-				Destroy Effect(Event Player.I);
-				Event Player.I = 0;
-				Play Effect(All Players(All Teams), Heal Target Active Effect, Color(White), Event Player, 1);
-				Play Effect(All Players(All Teams), Good Explosion, Color(Purple), Eye Position(Event Player), 1);
-				Play Effect(Event Player, Buff Impact Sound, Color(White), Eye Position(Event Player), 200);
-				Heal(Event Player, Null, Max Health(Event Player) * 0.300);
-				Create Effect(All Players(All Teams), Baptiste Immortality Field Protected Effect, Color(White), Event Player, 1,
-					Visible To Position and Radius);
-				Event Player.I = Last Created Entity;
-				Set Damage Received(Event Player, 50);
-				Set Knockback Received(Event Player, 0);
-				Wait(3, Restart When True);
-				Destroy Effect(Event Player.I);
-				Event Player.I = 0;
-				Set Damage Received(Event Player, 100);
-				Set Knockback Received(Event Player, 100);
+			If(Event Player.J > 0);
+				Event Player.J = Max(0, Event Player.J - 0.050);
+				If(Event Player.J == 0);
+					Destroy Effect(Event Player.I);
+					Event Player.I = 0;
+					Set Damage Received(Event Player, 100);
+				End;
 			End;
 			Wait(0.050, Ignore Condition);
 		End;
 		Destroy Progress Bar HUD Text(Event Player.H);
 		Event Player.G = 0;
+		Event Player.J = 0;
 		Event Player.H = 0;
 		Destroy Effect(Event Player.I);
 		Event Player.I = 0;
 		Set Damage Received(Event Player, 100);
-		Set Knockback Received(Event Player, 100);
 	}
 }
 
@@ -5979,9 +6002,26 @@ rule("116: Filled with: Perseverance Charge")
 	actions
 	{
 		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.G += 20;
-		If(Event Player.G > 100);
-			Event Player.G = 100;
+		"Charge Perseverance"
+		Event Player.G = Min(100, Event Player.G + 20);
+		If(Event Player.G >= 100);
+			"Activate Perseverance"
+			Event Player.G = 0;
+			"Refresh Three Second Buff"
+			Event Player.J = 3;
+			"Heal 30%"
+			Heal(Event Player, Null, Max Health(Event Player) * 0.300);
+			"Refresh Effects"
+			Destroy Effect(Event Player.I);
+			Event Player.I = 0;
+			Play Effect(All Players(All Teams), Heal Target Active Effect, Color(White), Event Player, 1);
+			Play Effect(All Players(All Teams), Good Explosion, Color(Purple), Eye Position(Event Player), 1);
+			Play Effect(Event Player, Buff Impact Sound, Color(White), Eye Position(Event Player), 200);
+			Create Effect(All Players(All Teams), Baptiste Immortality Field Protected Effect, Color(White), Event Player, 1,
+				Visible To Position and Radius);
+			Event Player.I = Last Created Entity;
+			"50% Damage Reduction"
+			Set Damage Received(Event Player, 50);
 		End;
 	}
 }
@@ -6431,8 +6471,8 @@ rule("123: Black Flash Melee")
 	actions
 	{
 		Abort If(Event Player.isSelectingFavourite == True);
-		If(Random Integer(1, Event Player.consecutiveDiceRoll == 123 ? 2 : 3) == 1);
-			Event Player.consecutiveDiceRoll = 123;
+		If(Random Integer(1, Event Player.diceReroll == 123 ? 2 : 3) == 1);
+			Event Player.diceReroll = 123;
 			disabled Event Player.H = True;
 			Destroy Effect(Event Player.G);
 			Play Effect(All Players(All Teams), Bad Explosion, Color(Red), Position Of(Victim), 15);
@@ -6449,7 +6489,8 @@ rule("123: Black Flash Melee")
 			Create Effect(All Players(All Teams), Baptiste Immortality Field Protected Effect, Color(White), Event Player, 1,
 				Visible To Position and Radius);
 			Event Player.G = Last Created Entity;
-			Set Move Speed(Event Player, 115);
+			Event Player.perkDuration += 3;
+			Set Move Speed(Event Player, 125);
 			Set Damage Received(Event Player, 75);
 		End;
 		Wait(2, Restart When True);
@@ -6482,59 +6523,47 @@ rule("124: Cursed Swap")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 30;
 		Big Message(Event Player, Custom String("Press Interact to Swap"));
-	}
-}
-
-rule("124: Cursed Swap Interact")
-{
-	event
-	{
-		Ongoing - Each Player;
-		All;
-		All;
-	}
-
-	conditions
-	{
-		Event Player.diceRoll == 124;
-		Is Button Held(Event Player, Button(Interact)) == True;
-		Event Player.perkDuration > 0;
-		Is Alive(Event Player) == True;
-	}
-
-	actions
-	{
-		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.G = Player Closest To Reticle(Event Player, All Teams);
-		If(Is In Line of Sight(Event Player, Event Player.G, Barriers Do Not Block LOS));
-			Event Player.H[0] = Position Of(Event Player);
-			Event Player.H[1] = Facing Direction Of(Event Player);
-			Event Player.H[2] = Position Of(Event Player.G);
-			Event Player.H[3] = Facing Direction Of(Event Player.G);
-			Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Position Of(Event Player), 200);
-			Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Position Of(Event Player.G), 200);
-			Play Effect(All Players(All Teams), Bad Pickup Effect, Color(Aqua), Position Of(Event Player), 3);
-			Play Effect(All Players(All Teams), Bad Pickup Effect, Color(Aqua), Position Of(Event Player.G), 3);
-			Teleport(Event Player, Event Player.H[2]);
-			Set Facing(Event Player, Event Player.H[3], To World);
-			Teleport(Event Player.G, Event Player.H[0]);
-			Set Facing(Event Player.G, Event Player.H[1], To World);
-			Set Environment Credit Player(Event Player, Event Player.G);
-			Set Environment Credit Player(Event Player.G, Event Player);
-			Event Player.perkDuration -= 3;
-			If(Event Player.perkDuration < 0);
-				Event Player.perkDuration = 0;
+		"Interact swap, merged from 124: Cursed Swap Interact"
+		While(Event Player.perkActivated == True && Event Player.diceRoll == 124);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 124 || (Is Button Held(Event Player, Button(
+				Interact)) == True && Is Alive(Event Player) == True), 999999);
+			If(Event Player.perkActivated == True && Event Player.diceRoll == 124 && Event Player.perkDuration > 0 && Is Button Held(
+				Event Player, Button(Interact)) == True && Is Alive(Event Player) == True);
+				Event Player.G = Player Closest To Reticle(Event Player, All Teams);
+				If(Is In Line of Sight(Event Player, Event Player.G, Barriers Do Not Block LOS));
+					Event Player.H[0] = Position Of(Event Player);
+					Event Player.H[1] = Facing Direction Of(Event Player);
+					Event Player.H[2] = Position Of(Event Player.G);
+					Event Player.H[3] = Facing Direction Of(Event Player.G);
+					Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Position Of(Event Player), 200);
+					Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Position Of(Event Player.G), 200);
+					Play Effect(All Players(All Teams), Bad Pickup Effect, Color(Aqua), Position Of(Event Player), 3);
+					Play Effect(All Players(All Teams), Bad Pickup Effect, Color(Aqua), Position Of(Event Player.G), 3);
+					Teleport(Event Player, Event Player.H[2]);
+					Set Facing(Event Player, Event Player.H[3], To World);
+					Teleport(Event Player.G, Event Player.H[0]);
+					Set Facing(Event Player.G, Event Player.H[1], To World);
+					Set Environment Credit Player(Event Player, Event Player.G);
+					Set Environment Credit Player(Event Player.G, Event Player);
+					Event Player.perkDuration -= 3;
+					If(Event Player.perkDuration < 0);
+						Event Player.perkDuration = 0;
+					End;
+					Event Player.G = 0;
+				Else;
+					Event Player.G = 0;
+				End;
+				Event Player.G = 0;
+				Event Player.H = 0;
 			End;
-			Event Player.G = 0;
-		Else;
-			Event Player.G = 0;
+			"wait for Interact to be released before the next swap"
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 124 || Is Button Held(Event Player, Button(Interact))
+				== False, 999999);
 		End;
-		Event Player.G = 0;
-		Event Player.H = 0;
 	}
 }
 
-rule("125: Innate Strength")
+rule("125: Cursed Speech")
 {
 	event
 	{
@@ -6550,33 +6579,116 @@ rule("125: Innate Strength")
 
 	actions
 	{
-		Event Player.perkColour = Color(White);
-		Event Player.perkName = Custom String("Innate Strength");
+		Event Player.perkColour = Color(Purple);
+		Event Player.perkName = Custom String("Cursed Speech");
 		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.perkDuration = 10;
-		Set Ability 1 Enabled(Event Player, False);
-		Set Ability 2 Enabled(Event Player, False);
-		Disallow Button(Event Player, Button(Ultimate));
-		Set Gravity(Event Player, 200);
-		Set Move Speed(Event Player, 200);
-		Set Jump Vertical Speed(Event Player, 200);
-		Set Damage Dealt(Event Player, 150);
-		Add Health Pool To Player(Event Player, Health, 250, True, True);
-		Start Forcing Player Outlines(Event Player, All Players(All Teams), False, Color(White), Default);
-		Event Player.showHeroIconEsp = True;
-		Event Player.showPerkEsp = False;
-		Wait Until(Event Player.perkActivated == False, 9999);
-		Set Ability 1 Enabled(Event Player, True);
-		Set Ability 2 Enabled(Event Player, True);
-		Allow Button(Event Player, Button(Ultimate));
-		Stop Forcing Player Outlines(Event Player, All Players(All Teams));
-		Set Move Speed(Event Player, 100);
-		Set Jump Vertical Speed(Event Player, 100);
-		Set Damage Dealt(Event Player, 100);
-		Remove All Health Pools From Player(Event Player);
-		Set Gravity(Event Player, 100);
-		Event Player.showHeroIconEsp = False;
-		Event Player.showPerkEsp = False;
+		Event Player.perkDuration = 30;
+		Event Player.G = 0;
+		Event Player.H = False;
+		Event Player.I = 0;
+		Big Message(Event Player, Custom String("Aim at a player and press Interact."));
+		"Interact command, merged from 125: Cursed Speech - Command"
+		While(Event Player.perkActivated == True && Event Player.diceRoll == 125);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 125 || (Is Button Held(Event Player, Button(
+				Interact)) == True && Is Alive(Event Player) == True), 9999);
+			If(Event Player.perkActivated == True && Event Player.diceRoll == 125 && Is Button Held(Event Player, Button(Interact)) == True
+				&& Is Alive(Event Player) == True);
+				"Find Target"
+				Event Player.G = Player Closest To Reticle(Event Player, All Teams);
+				If(Event Player.G != Null && Event Player.G != Event Player && Is Alive(Event Player.G) == True && Is In Line of Sight(
+					Event Player, Event Player.G, Barriers Do Not Block LOS) == True);
+					"Roll Command"
+					Event Player.I = Random Integer(1, 7);
+					"Default Costs"
+					Event Player.J = 40;
+					Event Player.K = 8;
+					"Freeze!"
+					If(Event Player.I == 1);
+						Big Message(Array(Event Player, Event Player.G), Custom String("FREEZE!"));
+						Play Effect(All Players(All Teams), Ring Explosion, Color(Sky Blue), Event Player.G, 3);
+						Play Effect(All Players(All Teams), Ring Explosion Sound, Color(White), Event Player.G, 200);
+						Set Status(Event Player.G, Event Player, Frozen, 2);
+					"Catch Fire!"
+					Else If(Event Player.I == 2);
+						Event Player.J = 30;
+						Event Player.K = 6;
+						Big Message(Array(Event Player, Event Player.G), Custom String("CATCH FIRE!"));
+						Play Effect(All Players(All Teams), Bad Explosion, Color(Orange), Event Player.G, 3);
+						Set Status(Event Player.G, Event Player, Burning, 3);
+						Start Damage Over Time(Event Player.G, Event Player, 3, 12);
+					"Fly!"
+					Else If(Event Player.I == 3);
+						Event Player.J = 25;
+						Event Player.K = 5;
+						Big Message(Array(Event Player, Event Player.G), Custom String("FLY!"));
+						Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.G, 4);
+						Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Event Player.G, 200);
+						Apply Impulse(Event Player.G, Up, 28, To World, Cancel Contrary Motion);
+					"Hover!"
+					Else If(Event Player.I == 4);
+						Event Player.J = 15;
+						Event Player.K = 3;
+						Big Message(Array(Event Player, Event Player.G), Custom String("HOVER!"));
+						Play Effect(All Players(All Teams), Good Explosion, Color(Aqua), Event Player.G, 3);
+						Set Gravity(Event Player.G, 0);
+						Apply Impulse(Event Player.G, Up, 1, To World, Cancel Contrary Motion);
+					"Shrink!"
+					Else If(Event Player.I == 5);
+						Event Player.J = 20;
+						Event Player.K = 4;
+						Big Message(Array(Event Player, Event Player.G), Custom String("SHRINK!"));
+						Play Effect(All Players(All Teams), Bad Explosion, Color(Purple), Event Player.G, 3);
+						Start Scaling Player(Event Player.G, 0.500, True);
+						Set Damage Received(Event Player.G, 125);
+						Start Modifying Hero Voice Lines(Event Player.G, 1.500, True);
+					"Grow!"
+					Else If(Event Player.I == 6);
+						Event Player.J = 25;
+						Event Player.K = 5;
+						Big Message(Array(Event Player, Event Player.G), Custom String("GROW!"));
+						Play Effect(All Players(All Teams), Good Explosion, Color(Purple), Event Player.G, 4);
+						Start Scaling Player(Event Player.G, 2, True);
+						Set Damage Received(Event Player.G, 50);
+						Start Modifying Hero Voice Lines(Event Player.G, 0.500, True);
+					"Sleep!"
+					Else;
+						Event Player.J = 35;
+						Event Player.K = 7;
+						Big Message(Array(Event Player, Event Player.G), Custom String("SLEEP!"));
+						Play Effect(All Players(All Teams), Ring Explosion, Color(Purple), Event Player.G, 3);
+						Play Effect(All Players(All Teams), Ring Explosion Sound, Color(White), Event Player.G, 200);
+						Set Status(Event Player.G, Event Player, Asleep, 3);
+					End;
+					"Health Cost"
+					Set Player Health(Event Player, Max(1, Health(Event Player) - Event Player.J));
+					"Duration Cost"
+					Event Player.perkDuration = Max(0, Event Player.perkDuration - Event Player.K);
+					"Command Cooldown"
+					Wait(4, Ignore Condition);
+					"Restore Temporary Effects"
+					If(Event Player.I == 4);
+						Set Gravity(Event Player.G, 100);
+					Else If(Event Player.I == 5 || Event Player.I == 6);
+						Stop Scaling Player(Event Player.G);
+						Set Damage Received(Event Player.G, 100);
+						Stop Modifying Hero Voice Lines(Event Player.G);
+					End;
+					Event Player.G = 0;
+					Event Player.I = 0;
+					Event Player.J = 0;
+					Event Player.K = 0;
+				Else;
+					"no valid target: wait for Interact to be released, a successful command repeats while held as before"
+					Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 125 || Is Button Held(Event Player, Button(
+						Interact)) == False, 9999);
+				End;
+			End;
+		End;
+		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.I = 0;
+		Event Player.J = 0;
+		Event Player.K = 0;
 	}
 }
 
@@ -6600,7 +6712,7 @@ rule("126: Double Duration")
 		Event Player.perkName = Custom String("Double Duration");
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 1;
-		Event Player.consecutiveDiceRoll = 126;
+		Event Player.diceReroll = 126;
 		All Players(All Teams).durationModifier *= 2;
 		Big Message(All Players(All Teams), Custom String("{0} {1} doubled all perk durations!", Hero Icon String(Hero Of(Event Player)),
 			Event Player));
@@ -6630,7 +6742,7 @@ rule("127: Halved Duration")
 		Event Player.perkName = Custom String("Halved Duration");
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 1;
-		Event Player.consecutiveDiceRoll = 127;
+		Event Player.diceReroll = 127;
 		All Players(All Teams).durationModifier /= 2;
 		Big Message(All Players(All Teams), Custom String("{0} {1} halved all perk durations!", Hero Icon String(Hero Of(Event Player)),
 			Event Player));
@@ -6743,9 +6855,22 @@ rule("131: Grounded")
 		Event Player.perkName = Custom String("Grounded");
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 10;
-		Set Jump Enabled(Event Player, False);
-		Wait Until(Event Player.perkActivated == False, 9999);
-		Set Jump Enabled(Event Player, True);
+		disabled Set Jump Enabled(Event Player, False);
+		disabled Wait Until(Event Player.perkActivated == False, 9999);
+		disabled Set Jump Enabled(Event Player, True);
+		"TEST: instead of disabling jump, slam the player back down whenever they leave the ground (restore the disabled lines above to revert)"
+		While(Event Player.perkActivated == True && Event Player.diceRoll == 131);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 131 || (Is In Air(Event Player) == True && Is Alive(
+				Event Player) == True), 999999);
+			"while airborne, push down at full speed, again only if something stops the fall"
+			While(Event Player.perkActivated == True && Event Player.diceRoll == 131 && Is In Air(Event Player) == True && Is Alive(
+				Event Player) == True);
+				If(Vertical Speed Of(Event Player) > -20);
+					Apply Impulse(Event Player, Down, 100, To World, Cancel Contrary Motion);
+				End;
+				Wait(0.100, Ignore Condition);
+			End;
+		End;
 	}
 }
 
@@ -6839,9 +6964,7 @@ rule("133: Skill Check")
 					Set Ability Cooldown(Event Player, Button(Ability 1), 0);
 					Set Ability Cooldown(Event Player, Button(Ability 2), 0);
 					Start Heal Over Time(Event Player, Event Player, 1, 75);
-					Event Player.consecutiveDiceRoll = 133;
-					Wait Until(Event Player.diceCooldown > 0, 5);
-					Event Player.diceCooldown = 1;
+					Event Player.diceReroll = 133;
 				Else;
 					Event Player.J = 2;
 					Event Player.I = 100;
@@ -6867,11 +6990,17 @@ rule("133: Skill Check")
 			Set Ability Cooldown(Event Player, Button(Ability 2), Ability Cooldown(Event Player, Button(Ability 2)) + 5);
 			Damage(Event Player, Null, 75);
 		End;
+		"End Skill Check"
 		Event Player.perkDuration = 0;
 		Event Player.perkActivated = False;
 		Event Player.G = 0;
 		Event Player.H = 0;
 		Event Player.I = 0;
+		"Successful Skill Check Cooldown"
+		If(Event Player.J == 1);
+			Wait Until(Event Player.diceCooldown > 0, 5);
+			Event Player.diceCooldown = 1;
+		End;
 		Event Player.J = 0;
 	}
 }
@@ -7187,21 +7316,26 @@ rule("137: Equalizer")
 
 	actions
 	{
-		Event Player.perkColour = Color(Rose);
+		Event Player.perkColour = Custom Color(215, 243, 255, 255);
 		Event Player.perkName = Custom String("Equalizer");
 		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.perkDuration = 1;
+		Event Player.perkDuration = 25;
+		Big Message(Event Player, Custom String("Press Interact to Use."));
+		Wait Until((Is Alive(Event Player) == True && Is Button Held(Event Player, Button(Interact)) == True) || (
+			Event Player.perkActivated == False), 999999);
+		Abort If(Event Player.perkActivated == False);
 		Event Player.G = Filtered Array(Players Within Radius(Event Player, 15, All Teams, Off),
 			Current Array Element != Event Player && Is Alive(Current Array Element) == True);
+		Play Effect(All Players(All Teams), Ring Explosion, Custom Color(215, 243, 255, 255), Position Of(Event Player), 15);
 		Event Player.H = Health(Event Player) / Max Health(Event Player);
-		Play Effect(All Players(All Teams), Ring Explosion, Color(Rose), Position Of(Event Player), 15);
 		Event Player.I = 0;
 		While(Event Player.I < Count Of(Event Player.G));
 			Set Player Health(Event Player.G[Event Player.I], Max Health(Event Player.G[Event Player.I]) * Event Player.H);
 			Set Ultimate Charge(Event Player.G[Event Player.I], Ultimate Charge Percent(Event Player));
 			Event Player.I += 1;
 		End;
-		Wait Until(Event Player.perkActivated == False, 999999);
+		Event Player.perkDuration = 0;
+		Event Player.perkActivated = False;
 		Event Player.G = 0;
 		Event Player.H = 0;
 		Event Player.I = 0;
@@ -7228,14 +7362,35 @@ rule("138: Soul Link")
 		Event Player.perkName = Custom String("Soul Link");
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 10;
+		"G = linked player, H = beam"
 		Event Player.G = Random Value In Array(Filtered Array(All Living Players(All Teams), Current Array Element != Event Player));
-		Big Message(Event Player, Custom String("Soul Linked to: {0} {1}", Hero Icon String(Hero Of(Event Player.G)), Event Player.G));
-		Wait Until((Event Player.perkActivated == False || Is Dead(Event Player.G)) == True, 999999);
-		If(Is Dead(Event Player.G));
+		"only the two linked players are told who they are linked to"
+		Big Message(Event Player, Custom String("Soul linked to {0} {1}.", Hero Icon String(Hero Of(
+			Event Player.G)), Event Player.G));
+		Big Message(Event Player.G, Custom String("{0} {1} soul linked you.", Hero Icon String(
+			Hero Of(Event Player)), Event Player));
+		"everyone can see the link"
+		Create Beam Effect(All Players(All Teams), Good Beam, Event Player, Event Player.G, Color(Sky Blue), Visible To Position and Radius);
+		Event Player.H = Last Created Entity;
+		Wait Until(Event Player.perkActivated == False || Is Dead(Event Player.G) == True || Is Dead(Event Player) == True, 999999);
+		"the link is cut"
+		Destroy Effect(Event Player.H);
+		Event Player.H = 0;
+		If(Is Dead(Event Player.G) == True && Is Alive(Event Player) == True);
 			Kill(Event Player, Event Player.G);
+			Big Message(Event Player, Custom String("{0} {1} died.", Hero Icon String(Hero Of(Event Player.G)),
+				Event Player.G));
+		Else If(Is Dead(Event Player) == True && Is Alive(Event Player.G) == True);
+			Kill(Event Player.G, Event Player);
+			Big Message(Event Player.G, Custom String("{0} {1} died.", Hero Icon String(Hero Of(Event Player)),
+				Event Player));
+		End;
+		If(Event Player.perkActivated == True && Event Player.diceRoll == 138);
 			Event Player.perkDuration = 0;
 			Event Player.perkActivated = False;
 		End;
+		"messages read their values a moment later, so keep G until they have"
+		Wait(0.250, Ignore Condition);
 		Event Player.G = 0;
 	}
 }
@@ -7726,7 +7881,7 @@ rule("144: Brain Worm")
 	}
 }
 
-rule("145: Legendary Warrior")
+rule("145: Spirit Bomb")
 {
 	event
 	{
@@ -7742,52 +7897,138 @@ rule("145: Legendary Warrior")
 
 	actions
 	{
-		Event Player.perkColour = Color(Green);
-		Event Player.perkName = Custom String("Legendary Warrior");
+		Event Player.perkColour = Color(Sky Blue);
+		Event Player.perkName = Custom String("Spirit Bomb");
 		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.perkDuration = 60;
+		"Setup"
+		Event Player.perkDuration = 75;
 		Event Player.G = 0;
-		"Duration values"
-		Event Player.G[8] = Event Player.perkDuration;
-		Event Player.G[9] = Event Player.G[8] * 1.500;
-		"Stomp HUD values"
-		Event Player.G[10] = Array(Custom String("                     "), Custom String("{0}                ", Icon String(Arrow: Down)),
-			Custom String("{0}   {0}        ", Icon String(Arrow: Down)), Custom String("{0}   {0}   {0}", Icon String(Arrow: Down)));
-		Event Player.G[11] = Array(Custom Color(255, 0, 0, 255), Custom Color(255, 64, 161, 255), Custom Color(210, 141, 252, 255),
-			Custom Color(148, 191, 255, 255));
-		"Effects"
-		Create Effect(All Players(All Teams), Good Aura, Color(Green), Event Player, 3, Visible To Position and Radius);
-		Event Player.G[0] = Last Created Entity;
-		Create Progress Bar In-World Text(Filtered Array(All Players(All Teams), Current Array Element != Event Player),
-			Event Player.perkDuration / Event Player.G[8] * 100, Custom String(""), Update Every Frame(Eye Position(Event Player)), 0.500,
-			Do Not Clip, Color(Green), Color(White), Visible To Position Values and Color, Default Visibility);
-		Event Player.G[1] = Last Text ID;
-		Create Progress Bar HUD Text(Event Player, Event Player.perkDuration / Event Player.G[8] * 100, Custom String("Legendary Form:"),
-			Top, 10, Color(Green), Color(White), Visible To Values and Color, Default Visibility);
-		Event Player.G[2] = Last Text ID;
-		"Stomps"
-		Event Player.J = 3;
-		Event Player.G[4] = Event Player.G[10][Event Player.J];
-		Event Player.G[5] = Event Player.G[11][Event Player.J];
-		Event Player.G[12] = 0;
-		Create HUD Text(Event Player, Custom String("{0}", Event Player.G[4]), Null, Null, Top, 11, Event Player.G[5], Color(White), Color(
-			White), Visible To String and Color, Default Visibility);
-		Event Player.G[3] = Last Text ID;
-		"Stats"
-		Wait(0.016, Ignore Condition);
-		Start Scaling Player(Event Player, 1.330, True);
-		Add Health Pool To Player(Event Player, Health, 200, True, True);
-		Set Damage Dealt(Event Player, 165);
-		Set Damage Received(Event Player, 70);
-		Set Move Speed(Event Player, 115);
-		Set Jump Vertical Speed(Event Player, 150);
-		Set Knockback Received(Event Player, 20);
-		"Main Legendary Warrior loop"
-		While(Event Player.perkActivated == True);
-			"Stun Reduction"
-			If(Has Status(Event Player, Hacked) || Has Status(Event Player, Knocked Down) || Has Status(Event Player, Asleep) || Has Status(
-				Event Player, Frozen) || Has Status(Event Player, Rooted) || Has Status(Event Player, Stunned) || Has Status(Event Player,
-				Burning));
+		Event Player.H = Empty Array;
+		Event Player.I = 0;
+		Event Player.J = 0;
+		Event Player.K = 0;
+		Event Player.L = 0;
+		Event Player.M = 0;
+		Event Player.N = Facing Direction Of(Event Player);
+		Event Player.O = 0;
+		"Opening Cutscene Protection"
+		Set Status(Event Player, Null, Invincible, 9999);
+		Set Knockback Received(Event Player, 0);
+		Set Move Speed(Event Player, 0);
+		Disallow Button(Event Player, Button(Primary Fire));
+		Disallow Button(Event Player, Button(Secondary Fire));
+		Disallow Button(Event Player, Button(Ability 1));
+		Disallow Button(Event Player, Button(Ability 2));
+		Disallow Button(Event Player, Button(Ultimate));
+		Disallow Button(Event Player, Button(Melee));
+		Disallow Button(Event Player, Button(Jump));
+		Disallow Button(Event Player, Button(Crouch));
+		"Create Spirit Bomb Dummy"
+		Create Dummy Bot(Hero(Sigma), All Teams, -1, World Vector Of(Vector(1.500, 0, -2), Event Player, Rotation And Translation),
+			Facing Direction Of(Event Player));
+		Event Player.H[4] = Last Created Entity;
+		"Protect Dummy"
+		Set Status(Event Player.H[4], Null, Invincible, 9999);
+		Set Gravity(Event Player.H[4], 0);
+		Set Damage Received(Event Player.H[4], 0);
+		Set Knockback Received(Event Player.H[4], 0);
+		Set Move Speed(Event Player.H[4], 0);
+		"Opening Camera"
+		Start Camera(Event Player, Eye Position(Event Player) + Event Player.N * 2.250 + Vector(0, 0.500, 0), Eye Position(Event Player)
+			+ Vector(0, 0.250, 0), 0);
+		"User Dialogue"
+		Create In-World Text(All Players(All Teams), Custom String("Get the Spirit Bomb ready."), Update Every Frame(Eye Position(
+			Event Player) + Vector(0, 1, 0)), 1.500, Do Not Clip, Visible To Position and String, Color(White), Default Visibility);
+		Event Player.H[6] = Last Text ID;
+		Wait(1.750, Ignore Condition);
+		Destroy In-World Text(Event Player.H[6]);
+		Event Player.H[6] = 0;
+		"Smooth Pan To Dummy"
+		Start Camera(Event Player, Update Every Frame(Eye Position(Event Player.H[4]) + Event Player.N * 2.500 + Vector(0, -1.250, 0)),
+			Update Every Frame(Eye Position(Event Player.H[4]) + Vector(0, 1.250, 0)), 5);
+		"Dummy Dialogue"
+		Create In-World Text(All Players(All Teams), Custom String("Got it!"), Update Every Frame(Eye Position(Event Player.H[4]) + Vector(
+			0, 1.500, 0)), 1.500, Do Not Clip, Visible To Position and String, Color(White), Default Visibility);
+		Event Player.H[6] = Last Text ID;
+		Wait(0.850, Ignore Condition);
+		Destroy In-World Text(Event Player.H[6]);
+		Event Player.H[6] = 0;
+		"Dummy Begins Flying"
+		Create In-World Text(All Players(All Teams), Custom String("Give me your energy!"), Update Every Frame(Eye Position(
+			Event Player.H[4]) + Vector(0, 1.500, 0)), 1.500, Do Not Clip, Visible To Position and String, Color(White),
+			Default Visibility);
+		Event Player.H[6] = Last Text ID;
+		Start Accelerating(Event Player.H[4], Up, 40, 6, To World, Direction Rate and Max Speed);
+		Wait(1, Ignore Condition);
+		Stop Accelerating(Event Player.H[4]);
+		"Freeze Dummy In Air"
+		Start Forcing Player Position(Event Player.H[4], Position Of(Event Player.H[4]), False);
+		Destroy In-World Text(Event Player.H[6]);
+		Event Player.H[6] = 0;
+		"Create Spirit Bomb"
+		Event Player.L = 0.100;
+		Event Player.O = Eye Position(Event Player.H[4]) + Vector(0, 7.500, 0);
+		Create Effect(All Players(All Teams), Sphere, Color(Sky Blue), Update Every Frame(Event Player.O), Event Player.L,
+			Visible To Position and Radius);
+		Event Player.H[5] = Last Created Entity;
+		"white core and sparkles, both scale with the bomb"
+		Create Effect(All Players(All Teams), Sphere, Color(White), Update Every Frame(Event Player.O), Event Player.L * 0.600,
+			Visible To Position and Radius);
+		Event Player.H[7] = Last Created Entity;
+		Create Effect(All Players(All Teams), Sparkles, Color(White), Update Every Frame(Event Player.O), Event Player.L * 1.100,
+			Visible To Position and Radius);
+		Event Player.H[8] = Last Created Entity;
+		"Grow Spirit Bomb"
+		Chase Player Variable Over Time(Event Player, L, 6, 0.600, Destination and Duration);
+		Wait(0.600, Ignore Condition);
+		Stop Chasing Player Variable(Event Player, L);
+		Event Player.L = 6;
+		"End Opening Cutscene"
+		Stop Camera(Event Player);
+		Clear Status(Event Player, Invincible);
+		Allow Button(Event Player, Button(Primary Fire));
+		Allow Button(Event Player, Button(Secondary Fire));
+		Allow Button(Event Player, Button(Ability 1));
+		Allow Button(Event Player, Button(Ability 2));
+		Allow Button(Event Player, Button(Ultimate));
+		Allow Button(Event Player, Button(Melee));
+		Allow Button(Event Player, Button(Jump));
+		Allow Button(Event Player, Button(Crouch));
+		Set Move Speed(Event Player, 100);
+		"Begin 60 Second Preparation (skipped if ended during opening cutscene)"
+		If(Event Player.perkActivated == True && Event Player.diceRoll == 145);
+			Event Player.perkDuration = 60;
+			Stop Chasing Player Variable(Event Player, perkDuration);
+			"the bomb slowly grows as it gathers energy, and rises so its sparkles stay above the dummy"
+			Chase Player Variable Over Time(Event Player, L, 9, 60, Destination and Duration);
+			Chase Player Variable Over Time(Event Player, O, Eye Position(Event Player.H[4]) + Vector(0, 11.400, 0), 60,
+				Destination and Duration);
+		End;
+		"Resolve HUD"
+		Create Progress Bar HUD Text(Event Player, Event Player.G, Custom String("Resolve"), Top, 5, Color(Sky Blue), Color(White),
+			Visible To Values and Color, Default Visibility);
+		Event Player.H[0] = Last Text ID;
+		"Guard HUD"
+		Create HUD Text(Event Player, Null, Null, Custom String("{0}", Event Player.J > 0 ? Custom String("GUARDING") : (
+			Event Player.I <= 0 ? Custom String("GUARD: READY") : Custom String("GUARD: {0}s", Round To Integer(Event Player.I, Up)))),
+			Right, 1, Color(White), Color(White), Event Player.J > 0 ? Color(Sky Blue) : (Event Player.I <= 0 ? Color(Green) : Color(
+			Gray)), Visible To String and Color, Default Visibility);
+		Event Player.H[1] = Last Text ID;
+		"Anti-Hiding Target Icon"
+		Create Icon(Filtered Array(All Players(All Teams), Current Array Element != Event Player && Is Dummy Bot(Current Array Element)
+			== False), Update Every Frame(Eye Position(Event Player) + Vector(0, 1, 0)), Skull, Visible To and Position, Color(Sky Blue),
+			False);
+		Event Player.H[3] = Last Created Entity;
+		"Preparation Defense"
+		Set Damage Received(Event Player, 80);
+		Set Knockback Received(Event Player, 50);
+		"Defense Loop"
+		While(Event Player.perkActivated == True && Is Alive(Event Player)
+			== True && Event Player.perkDuration > 0.050 && Event Player.diceRoll == 145);
+			"Resolve"
+			If(Event Player.G >= 100);
+				Event Player.G = 0;
+				Heal(Event Player, Null, Max Health(Event Player) * 0.250);
 				Stop All Damage Over Time(Event Player);
 				Clear Status(Event Player, Hacked);
 				Clear Status(Event Player, Burning);
@@ -7796,42 +8037,366 @@ rule("145: Legendary Warrior")
 				Clear Status(Event Player, Frozen);
 				Clear Status(Event Player, Rooted);
 				Clear Status(Event Player, Stunned);
+				"Resolve Effects"
+				Play Effect(All Players(All Teams), Good Explosion, Color(Sky Blue), Event Player, 8);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(Sky Blue), Event Player, 10);
+				Play Effect(All Players(All Teams), Ring Explosion Sound, Color(White), Event Player, 200);
+				Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Event Player, 200);
+				"Resolve Shockwave"
+				Event Player.K = Filtered Array(Players Within Radius(Event Player, 8, All Teams, Surfaces),
+					Current Array Element != Event Player && Is Dummy Bot(Current Array Element) == False);
+				Apply Impulse(Event Player.K, Up, 8, To World, Cancel Contrary Motion);
+				Apply Impulse(Event Player.K, Direction Towards(Event Player, Event Player.K), 35, To World, Cancel Contrary Motion);
+				Event Player.K = 0;
 			End;
-			"Stomp Recharge"
-			If(Event Player.J < 3);
-				Event Player.G[12] += 0.250;
-				If(Event Player.G[12] >= 4);
-					Event Player.G[12] = 0;
-					Event Player.J += 1;
-					Play Effect(Event Player, Buff Impact Sound, Color(White), Position Of(Event Player), 200);
-					Small Message(Event Player, Custom String("Stomp Refilled!"));
-					Event Player.G[4] = Event Player.G[10][Event Player.J];
-					Event Player.G[5] = Event Player.G[11][Event Player.J];
+			"Midway Dialogue Start"
+			If(Event Player.perkDuration <= 30 && Event Player.M == 0);
+				Event Player.M = 1;
+				Create In-World Text(All Players(All Teams), Custom String("Come on... hurry it up..."), Update Every Frame(Eye Position(
+					Event Player) + Vector(0, 1, 0)), 1.500, Do Not Clip, Visible To Position and String, Color(White), Default Visibility);
+				Event Player.H[6] = Last Text ID;
+			End;
+			"Midway Dialogue End"
+			If(Event Player.perkDuration <= 27 && Event Player.M == 1);
+				Destroy In-World Text(Event Player.H[6]);
+				Event Player.H[6] = 0;
+				Event Player.M = 2;
+			End;
+			"Start Guard"
+			If(Is Crouching(Event Player) == True && Is Button Held(Event Player, Button(Crouch))
+				== True && Event Player.I <= 0 && Event Player.J <= 0);
+				Event Player.J = 2;
+				"Disable Attacking"
+				Cancel Primary Action(Event Player);
+				Disallow Button(Event Player, Button(Primary Fire));
+				Disallow Button(Event Player, Button(Secondary Fire));
+				Disallow Button(Event Player, Button(Ability 1));
+				Disallow Button(Event Player, Button(Ability 2));
+				Disallow Button(Event Player, Button(Ultimate));
+				Disallow Button(Event Player, Button(Melee));
+				"Guard Defense"
+				Set Move Speed(Event Player, 35);
+				Set Damage Received(Event Player, 25);
+				Set Knockback Received(Event Player, 0);
+				"Guard Visual"
+				Create Effect(All Players(All Teams), Baptiste Immortality Field Protected Effect, Color(Sky Blue), Event Player, 1,
+					Visible To Position and Radius);
+				Event Player.H[2] = Last Created Entity;
+			End;
+			"Guard Active"
+			If(Event Player.J > 0);
+				Event Player.J -= 0.050;
+				If(Is Crouching(Event Player) == False || Is Button Held(Event Player, Button(Crouch)) == False || Event Player.J <= 0);
+					"End Guard"
+					Event Player.J = 0;
+					Event Player.I = 7;
+					Destroy Effect(Event Player.H[2]);
+					Event Player.H[2] = 0;
+					Allow Button(Event Player, Button(Primary Fire));
+					Allow Button(Event Player, Button(Secondary Fire));
+					Allow Button(Event Player, Button(Ability 1));
+					Allow Button(Event Player, Button(Ability 2));
+					Allow Button(Event Player, Button(Ultimate));
+					Allow Button(Event Player, Button(Melee));
+					Set Move Speed(Event Player, 100);
+					Set Damage Received(Event Player, 80);
+					Set Knockback Received(Event Player, 50);
+					"Guard Release Shockwave Effects"
+					Play Effect(All Players(All Teams), Good Explosion, Color(Sky Blue), Event Player, 6);
+					Play Effect(All Players(All Teams), Ring Explosion, Color(Sky Blue), Event Player, 7);
+					Play Effect(All Players(All Teams), Ring Explosion Sound, Color(White), Event Player, 200);
+					Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Event Player, 200);
+					"Guard Release Shockwave"
+					Event Player.K = Filtered Array(Players Within Radius(Event Player, 6, All Teams, Surfaces),
+						Current Array Element != Event Player && Is Dummy Bot(Current Array Element) == False);
+					Apply Impulse(Event Player.K, Up, 8, To World, Cancel Contrary Motion);
+					Apply Impulse(Event Player.K, Direction Towards(Event Player, Event Player.K), 45, To World, Cancel Contrary Motion);
+					Event Player.K = 0;
 				End;
-			Else;
-				Event Player.G[12] = 0;
 			End;
-			Wait(0.250, Ignore Condition);
+			"Guard Cooldown"
+			If(Event Player.I > 0 && Event Player.J <= 0);
+				Event Player.I -= 0.050;
+				If(Event Player.I <= 0);
+					Event Player.I = 0;
+					Play Effect(Event Player, Buff Impact Sound, Color(White), Eye Position(Event Player), 200);
+				End;
+			End;
+			"Energy Gathering, once per second"
+			If(Round To Integer(Event Player.perkDuration * 20, To Nearest) % 20 == 0);
+				Play Effect(All Players(All Teams), Good Pickup Effect, Color(Sky Blue), Event Player.O + Direction From Angles(Random Real(0,
+					360), Random Real(-30, 60)) * (Event Player.L + 4), 2);
+				Play Effect(All Players(All Teams), Good Pickup Effect, Color(Sky Blue), Event Player.O + Direction From Angles(Random Real(0,
+					360), Random Real(-30, 60)) * (Event Player.L + 4), 2);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(White), Event Player.O, Event Player.L + 2);
+			End;
+			"Preparation Timer"
+			Event Player.perkDuration -= 0.050;
+			Wait(0.050, Ignore Condition);
 		End;
-		"Remove stats"
-		Set Damage Dealt(Event Player, 100);
-		Set Damage Received(Event Player, 100);
+		"Preparation Failed"
+		If(Is Dead(Event Player) == True);
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+			Big Message(Event Player, Custom String("Spirit Bomb preparation failed."));
+		"Preparation Complete"
+		Else If(Event Player.perkActivated == True && Event Player.perkDuration <= 0.050 && Event Player.diceRoll == 145);
+			"Remove Preparation UI"
+			Destroy Progress Bar HUD Text(Event Player.H[0]);
+			Destroy HUD Text(Event Player.H[1]);
+			Destroy Icon(Event Player.H[3]);
+			Destroy Effect(Event Player.H[2]);
+			Destroy In-World Text(Event Player.H[6]);
+			Event Player.H[0] = 0;
+			Event Player.H[1] = 0;
+			Event Player.H[2] = 0;
+			Event Player.H[3] = 0;
+			Event Player.H[6] = 0;
+			"Ending Cutscene Protection"
+			Stop All Damage Over Time(Event Player);
+			Clear Status(Event Player, Hacked);
+			Clear Status(Event Player, Burning);
+			Clear Status(Event Player, Asleep);
+			Clear Status(Event Player, Frozen);
+			Clear Status(Event Player, Rooted);
+			Clear Status(Event Player, Stunned);
+			Clear Status(Event Player, Knocked Down);
+			Set Status(Event Player, Null, Invincible, 9999);
+			Set Damage Received(Event Player, 0);
+			Set Knockback Received(Event Player, 0);
+			Set Move Speed(Event Player, 0);
+			Disallow Button(Event Player, Button(Primary Fire));
+			Disallow Button(Event Player, Button(Secondary Fire));
+			Disallow Button(Event Player, Button(Ability 1));
+			Disallow Button(Event Player, Button(Ability 2));
+			Disallow Button(Event Player, Button(Ultimate));
+			Disallow Button(Event Player, Button(Melee));
+			Disallow Button(Event Player, Button(Jump));
+			Disallow Button(Event Player, Button(Crouch));
+			"User Falls"
+			Set Status(Event Player, Null, Knocked Down, 9999);
+			Event Player.N = Direction From Angles(Horizontal Facing Angle Of(Event Player), 0);
+			"Ending Camera On User"
+			Start Camera(Event Player, Update Every Frame(Eye Position(Event Player) + Event Player.N * 2.250 + Vector(0, 0.500, 0)),
+				Update Every Frame(Eye Position(Event Player) + Vector(0, 0.250, 0)), 0);
+			"I'm Counting On You"
+			Create In-World Text(All Players(All Teams), Custom String("I'm counting on you..."), Update Every Frame(Eye Position(Event Player)
+				+ Vector(0, 1, 0)), 1.500, Do Not Clip, Visible To Position and String, Color(White), Default Visibility);
+			Event Player.H[6] = Last Text ID;
+			Wait(1.250, Ignore Condition);
+			Destroy In-World Text(Event Player.H[6]);
+			Event Player.H[6] = 0;
+			"Pan To Dummy"
+			Start Camera(Event Player, Update Every Frame(Eye Position(Event Player.H[4]) + Event Player.N * 2.500 + Vector(0, -1.250, 0)),
+				Update Every Frame(Eye Position(Event Player.H[4]) + Vector(0, 1.250, 0)), 5);
+			Wait(0.750, Ignore Condition);
+			"Huh"
+			Create In-World Text(All Players(All Teams), Custom String("Huh?"), Update Every Frame(Eye Position(Event Player.H[4]) + Vector(0,
+				1.500, 0)), 1.500, Do Not Clip, Visible To Position and String, Color(White), Default Visibility);
+			Event Player.H[6] = Last Text ID;
+			Wait(0.600, Ignore Condition);
+			Destroy In-World Text(Event Player.H[6]);
+			Event Player.H[6] = 0;
+			"Spirit Bomb Final Growth"
+			Start Camera(Event Player, Update Every Frame(Eye Position(Event Player.H[4]) + Event Player.N * 3 + Vector(0, -2, 0)),
+				Update Every Frame(Eye Position(Event Player.H[4]) + Vector(0, 3, 0)), 5);
+			Chase Player Variable Over Time(Event Player, L, 18, 2, Destination and Duration);
+			Chase Player Variable Over Time(Event Player, O, Eye Position(Event Player.H[4]) + Vector(0, 19.500, 0), 3,
+				Destination and Duration);
+			Wait(2, Ignore Condition);
+			Stop Chasing Player Variable(Event Player, L);
+			Stop Chasing Player Variable(Event Player, O);
+			Event Player.L = 18;
+			Event Player.O = Eye Position(Event Player.H[4]) + Vector(0, 19.500, 0);
+			"There We Go"
+			Create In-World Text(All Players(All Teams), Custom String("There we go!"), Update Every Frame(Eye Position(Event Player.H[4])
+				+ Vector(0, 1.500, 0)), 1.500, Do Not Clip, Visible To Position and String, Color(White), Default Visibility);
+			Event Player.H[6] = Last Text ID;
+			Wait(0.800, Ignore Condition);
+			Destroy In-World Text(Event Player.H[6]);
+			Event Player.H[6] = 0;
+			"Pan Back To User"
+			Start Camera(Event Player, Update Every Frame(Eye Position(Event Player) + Event Player.N * 2.250 + Vector(0, 0.500, 0)),
+				Update Every Frame(Eye Position(Event Player) + Vector(0, 0.250, 0)), 5);
+			Wait(0.500, Ignore Condition);
+			"Do It"
+			Create In-World Text(All Players(All Teams), Custom String("Do it!"), Update Every Frame(Eye Position(Event Player) + Vector(0, 1,
+				0)), 1.500, Do Not Clip, Visible To Position and String, Color(White), Default Visibility);
+			Event Player.H[6] = Last Text ID;
+			Wait(1, Ignore Condition);
+			Destroy In-World Text(Event Player.H[6]);
+			Event Player.H[6] = 0;
+			"Pan Back To Dummy"
+			Start Camera(Event Player, Update Every Frame(Eye Position(Event Player.H[4]) + Event Player.N * 2.500 + Vector(0, -1.250, 0)),
+				Update Every Frame(Eye Position(Event Player.H[4]) + Vector(0, 1.250, 0)), 5);
+			Wait(0.500, Ignore Condition);
+			"Nice Work"
+			Create In-World Text(All Players(All Teams), Custom String("Nice Work {0}!", Event Player), Update Every Frame(Eye Position(
+				Event Player.H[4]) + Vector(0, 1.500, 0)), 1.500, Do Not Clip, Visible To Position and String, Color(White),
+				Default Visibility);
+			Event Player.H[6] = Last Text ID;
+			Wait(0.800, Ignore Condition);
+			Destroy In-World Text(Event Player.H[6]);
+			Event Player.H[6] = 0;
+			"Find Impact Target"
+			Event Player.K = Filtered Array(All Living Players(All Teams), Current Array Element != Event Player && Is Dummy Bot(
+				Current Array Element) == False);
+			If(Count Of(Event Player.K) > 0);
+				Event Player.K = First Of(Sorted Array(Event Player.K, Distance Between(Current Array Element, Event Player)));
+				Event Player.G = Nearest Walkable Position(Position Of(Event Player.K));
+			Else;
+				Event Player.K = 0;
+				Event Player.G = Nearest Walkable Position(Position Of(Event Player) + Facing Direction Of(Event Player) * 5);
+			End;
+			"Dummy Faces Impact"
+			Start Facing(Event Player.H[4], Direction Towards(Eye Position(Event Player.H[4]), Event Player.G), 10000, To World,
+				Direction and Turn Rate);
+			"GOOOOOO"
+			Create In-World Text(All Players(All Teams), Custom String("GOOOOOO!!!"), Update Every Frame(Eye Position(Event Player.H[4])
+				+ Vector(0, 1.500, 0)), 2, Do Not Clip, Visible To Position and String, Color(White), Default Visibility);
+			Event Player.H[6] = Last Text ID;
+			"Throw Spirit Bomb"
+			"the flight matches the 2.05s of waits below, so the bomb lands the moment it explodes"
+			Chase Player Variable Over Time(Event Player, O, Event Player.G, 2.050, Destination and Duration);
+			Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.O, 6);
+			Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Event Player.O, 200);
+			Wait(0.450, Ignore Condition);
+			Destroy In-World Text(Event Player.H[6]);
+			Event Player.H[6] = 0;
+			"Til Then"
+			If(Event Player.K != 0);
+				Create In-World Text(All Players(All Teams), Custom String("'Til then, {0}.", Event Player.K), Update Every Frame(Eye Position(
+					Event Player.H[4]) + Vector(0, 1.500, 0)), 1.500, Do Not Clip, Visible To Position and String, Color(White),
+					Default Visibility);
+			Else;
+				Create In-World Text(All Players(All Teams), Custom String("'Til then."), Update Every Frame(Eye Position(Event Player.H[4])
+					+ Vector(0, 1.500, 0)), 1.500, Do Not Clip, Visible To Position and String, Color(White), Default Visibility);
+			End;
+			Event Player.H[6] = Last Text ID;
+			Wait(1, Ignore Condition);
+			Destroy In-World Text(Event Player.H[6]);
+			Event Player.H[6] = 0;
+			"Follow Spirit Bomb"
+			Start Camera(Event Player, Update Every Frame(Event Player.O + Event Player.N * 5 + Vector(0, 2, 0)), Update Every Frame(
+				Event Player.O), 5);
+			Wait(0.600, Ignore Condition);
+			Stop Chasing Player Variable(Event Player, O);
+			Event Player.O = Event Player.G;
+			"Spirit Bomb Impact"
+			"the bomb swells into the blast, it fades out before the perk ends"
+			Chase Player Variable Over Time(Event Player, L, 40, 0.200, Destination and Duration);
+			Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.G, 20);
+			Play Effect(All Players(All Teams), Ring Explosion, Color(Turquoise), Event Player.G, 35);
+			Play Effect(All Players(All Teams), Good Explosion, Color(Sky Blue), Event Player.G, 40);
+			Play Effect(All Players(All Teams), Bad Explosion, Color(Sky Blue), Event Player.G, 35);
+			Play Effect(All Players(All Teams), Ring Explosion, Color(Sky Blue), Event Player.G, 55);
+			Play Effect(All Players(All Teams), Ring Explosion, Color(White), Event Player.G, 75);
+			Play Effect(All Players(All Teams), Explosion Sound, Color(White), Event Player.G, 200);
+			Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Event Player.G, 200);
+			"Spirit Bomb Victims"
+			Event Player.K = Filtered Array(Players Within Radius(Event Player.G, 75, All Teams, Off),
+				Current Array Element != Event Player && Is Dummy Bot(Current Array Element) == False);
+			"Remove Victim Perks"
+			Event Player.K.perkDuration = 0;
+			Event Player.K.perkActivated = False;
+			"Allow Perk Cleanup"
+			Wait(0.100, Ignore Condition);
+			"Disable Death Perks"
+			Event Player.K.diceRoll = 0;
+			Stop All Heal Over Time(Event Player.K);
+			Stop All Damage Over Time(Event Player.K);
+			Clear Status(Event Player.K, Hacked);
+			Clear Status(Event Player.K, Burning);
+			Clear Status(Event Player.K, Asleep);
+			Clear Status(Event Player.K, Frozen);
+			Clear Status(Event Player.K, Unkillable);
+			Clear Status(Event Player.K, Invincible);
+			Clear Status(Event Player.K, Phased Out);
+			Clear Status(Event Player.K, Rooted);
+			Clear Status(Event Player.K, Stunned);
+			Set Damage Received(Event Player.K, 100);
+			"Kill Everyone Except Spirit Bomb User"
+			Kill(Event Player.K, Event Player);
+			Wait(0.100, Ignore Condition);
+			"Extended Dice Cooldown"
+			disabled Event Player.K.diceCooldown = 30;
+			"Spirit Bomb Fade"
+			Chase Player Variable Over Time(Event Player, L, 0, 0.600, Destination and Duration);
+			Wait(0.600, Ignore Condition);
+			"End Spirit Bomb"
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+		End;
+		"Cleanup"
+		Destroy Progress Bar HUD Text(Event Player.H[0]);
+		Destroy HUD Text(Event Player.H[1]);
+		Destroy Effect(Event Player.H[2]);
+		Destroy Icon(Event Player.H[3]);
+		Destroy Effect(Event Player.H[5]);
+		Destroy In-World Text(Event Player.H[6]);
+		Destroy Effect(Event Player.H[7]);
+		Destroy Effect(Event Player.H[8]);
+		"Remove Dummy"
+		Stop Facing(Event Player.H[4]);
+		Stop Accelerating(Event Player.H[4]);
+		Stop Forcing Player Position(Event Player.H[4]);
+		Destroy Dummy Bot(All Teams, Slot Of(Event Player.H[4]));
+		"Restore Player"
+		Stop Chasing Player Variable(Event Player, L);
+		Stop Chasing Player Variable(Event Player, O);
+		Stop Camera(Event Player);
+		Clear Status(Event Player, Invincible);
+		Clear Status(Event Player, Knocked Down);
+		Allow Button(Event Player, Button(Primary Fire));
+		Allow Button(Event Player, Button(Secondary Fire));
+		Allow Button(Event Player, Button(Ability 1));
+		Allow Button(Event Player, Button(Ability 2));
+		Allow Button(Event Player, Button(Ultimate));
+		Allow Button(Event Player, Button(Melee));
+		Allow Button(Event Player, Button(Jump));
+		Allow Button(Event Player, Button(Crouch));
 		Set Move Speed(Event Player, 100);
-		Set Jump Vertical Speed(Event Player, 100);
+		Set Damage Received(Event Player, 100);
 		Set Knockback Received(Event Player, 100);
-		Stop Scaling Player(Event Player);
-		Remove All Health Pools From Player(Event Player);
-		"Remove effects / HUD"
-		Destroy Effect(Event Player.G[0]);
-		Destroy Progress Bar In-World Text(Event Player.G[1]);
-		Destroy Progress Bar HUD Text(Event Player.G[2]);
-		Destroy HUD Text(Event Player.G[3]);
 		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.I = 0;
 		Event Player.J = 0;
+		Event Player.K = 0;
+		Event Player.L = 0;
+		Event Player.M = 0;
+		Event Player.N = 0;
+		Event Player.O = 0;
 	}
 }
 
-rule("145: Legendary Warrior - Stomp")
+rule("145: Spirit Bomb - Resolve Charge")
+{
+	event
+	{
+		Player Took Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 145;
+		Event Player.perkActivated == True;
+		Event Player.G < 100;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.G += Event Damage * 0.500;
+		If(Event Player.G > 100);
+			Event Player.G = 100;
+		End;
+	}
+}
+
+rule("146: Heat Seaking Meowssile")
 {
 	event
 	{
@@ -7842,97 +8407,89 @@ rule("145: Legendary Warrior - Stomp")
 
 	conditions
 	{
-		Event Player.diceRoll == 145;
-		Event Player.perkActivated == True;
-		Is In Air(Event Player) == True;
-		Is Button Held(Event Player, Button(Crouch)) == True;
-		Event Player.J > 0;
+		Event Player.diceRoll == 146;
 	}
 
 	actions
 	{
+		Event Player.perkColour = Color(Orange);
+		Event Player.perkName = Custom String("Heat Seaking Meowssile");
 		Abort If(Event Player.isSelectingFavourite == True);
-		Cancel Primary Action(Event Player);
-		Event Player.J -= 1;
-		Event Player.G[4] = Event Player.G[10][Event Player.J];
-		Event Player.G[5] = Event Player.G[11][Event Player.J];
-		Apply Impulse(Event Player, Down, 70, To World, Cancel Contrary Motion);
-		Wait Until(Is On Ground(Event Player) || Event Player.perkActivated == False, 99999);
-		Abort If(Event Player.perkActivated == False);
-		Event Player.G[6] = Filtered Array(Players Within Radius(Event Player, 5, All Teams, Surfaces),
-			Current Array Element != Event Player);
-		Set Status(Event Player.G[6], Event Player, Knocked Down, 0.750);
-		Apply Impulse(Event Player.G[6], Up, 5, To World, Cancel Contrary Motion);
-		Damage(Event Player.G[6], Event Player, 40);
-		Event Player.G[6] = 0;
-	}
-}
-
-rule("145: Legendary Warrior - Siphon")
-{
-	event
-	{
-		Player Dealt Damage;
-		All;
-		All;
-	}
-
-	conditions
-	{
-		Event Player.diceRoll == 145;
-		Event Player.perkActivated == True;
-	}
-
-	actions
-	{
-		Abort If(Event Player.isSelectingFavourite == True);
-		If(Event Player.perkDuration < Event Player.G[8]);
-			Event Player.perkDuration += Event Damage * 0.020;
-		Else If(Event Player.perkDuration < Event Player.G[8] * 1.333);
-			Event Player.perkDuration += Event Damage * 0.008;
+		"Save Original Hero"
+		Event Player.perkDuration = 13;
+		Event Player.G = Ultimate Charge Percent(Event Player);
+		Event Player.H = Hero Of(Event Player);
+		Event Player.J = False;
+		Event Player.K = False;
+		Start Forcing Player To Be Hero(Event Player, Hero(Jetpack Cat));
+		Set Primary Fire Enabled(Event Player, False);
+		Set Ability 1 Enabled(Event Player, False);
+		Set Ability 2 Enabled(Event Player, False);
+		Set Melee Enabled(Event Player, False);
+		Disallow Button(Event Player, Button(Ultimate));
+		Disallow Button(Event Player, Button(Jump));
+		Disallow Button(Event Player, Button(Crouch));
+		"Forced Forward Flight"
+		Set Move Speed(Event Player, 300);
+		Start Forcing Throttle(Event Player, 1, 1, 0, 0, 0, 0);
+		"Initial Grace Period"
+		Wait(0.750, Ignore Condition);
+		"Visual Burning (no damage), set after the hero swap"
+		Set Status(Event Player, Null, Burning, 9999);
+		"Detect Stopping or Primary Fire"
+		While(Event Player.perkActivated == True && Event Player.perkDuration > 0 && Is Alive(Event Player)
+			== True && Event Player.J == False);
+			"Arm Primary Fire once it has been released"
+			Event Player.K = Event Player.K == True || Is Button Held(Event Player, Button(Primary Fire)) == False;
+			If(Magnitude Of(Velocity Of(Event Player)) < 10 || (Event Player.K == True && Is Button Held(Event Player, Button(Primary Fire))
+				== True));
+				"Explode"
+				Event Player.J = True;
+				Event Player.K = Position Of(Event Player);
+				Play Effect(All Players(All Teams), Bad Explosion, Color(Orange), Event Player.K, 12);
+				Play Effect(All Players(All Teams), Good Explosion, Color(Yellow), Event Player.K, 12);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(Orange), Event Player.K, 14);
+				Play Effect(All Players(All Teams), Explosion Sound, Color(White), Event Player.K, 200);
+				Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Event Player.K, 200);
+				"Explosion Damage"
+				Damage(Filtered Array(Players Within Radius(Event Player.K, 12, All Teams, Surfaces And All Barriers),
+					Current Array Element != Event Player), Event Player, 200);
+				Event Player.perkDuration = 0;
+				Event Player.perkActivated = False;
+			End;
+			Wait(0.050, Ignore Condition);
+		End;
+		Stop Forcing Throttle(Event Player);
+		Clear Status(Event Player, Burning);
+		Set Move Speed(Event Player, 100);
+		Set Primary Fire Enabled(Event Player, True);
+		Set Ability 1 Enabled(Event Player, True);
+		Set Ability 2 Enabled(Event Player, True);
+		Set Melee Enabled(Event Player, True);
+		Allow Button(Event Player, Button(Ultimate));
+		Allow Button(Event Player, Button(Jump));
+		Allow Button(Event Player, Button(Crouch));
+		Event Player.perkDuration = 0;
+		Event Player.perkActivated = False;
+		Wait Until(Is Alive(Event Player), 99999);
+		Start Forcing Player To Be Hero(Event Player, Event Player.H);
+		Stop Forcing Player To Be Hero(Event Player);
+		Wait(0.500, Ignore Condition);
+		Set Ultimate Charge(Event Player, Event Player.G);
+		If(Event Player.J == True);
+			Set Player Health(Event Player, 1);
 		Else;
-			Event Player.perkDuration += Event Damage * 0.004;
+			Set Player Health(Event Player, Max Health(Event Player));
 		End;
-		If(Event Player.perkDuration > Event Player.G[9]);
-			Event Player.perkDuration = Event Player.G[9];
-		End;
-		Heal(Event Player, Event Player, Event Damage * 0.200);
+		"Cleanup"
+		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.J = 0;
+		Event Player.K = 0;
 	}
 }
 
-rule("145: Legendary Warrior - Kill")
-{
-	event
-	{
-		Player Dealt Final Blow;
-		All;
-		All;
-	}
-
-	conditions
-	{
-		Event Player.diceRoll == 145;
-		Event Player.perkActivated == True;
-	}
-
-	actions
-	{
-		Abort If(Event Player.isSelectingFavourite == True);
-		If(Event Player.perkDuration < Event Player.G[8]);
-			Event Player.perkDuration += 2.500 * Event Player.G[8] / 60;
-		Else If(Event Player.perkDuration < Event Player.G[8] * 1.333);
-			Event Player.perkDuration += 1.250 * Event Player.G[8] / 60;
-		Else;
-			Event Player.perkDuration += 0.750 * Event Player.G[8] / 60;
-		End;
-		If(Event Player.perkDuration > Event Player.G[9]);
-			Event Player.perkDuration = Event Player.G[9];
-		End;
-		Heal(Event Player, Event Player, 60);
-	}
-}
-
-rule("145: Legendary Warrior - Die")
+rule("146: Heat Seaking Meowssile Dead")
 {
 	event
 	{
@@ -7943,14 +8500,875 @@ rule("145: Legendary Warrior - Die")
 
 	conditions
 	{
-		Event Player.diceRoll == 145;
+		Event Player.diceRoll == 146;
 		Event Player.perkActivated == True;
 	}
 
 	actions
 	{
 		Abort If(Event Player.isSelectingFavourite == True);
+		"Failed Flight"
+		Event Player.J = True;
 		Event Player.perkDuration = 0;
 		Event Player.perkActivated = False;
+		"Resurrection"
+		Big Message(Event Player, Custom String("Reviving"));
+		Teleport(Event Player, Nearest Walkable Position(Event Player));
+		Create Effect(All Players(All Teams), Sphere, Color(Yellow), Eye Position(Event Player), 0.500, None);
+		Event Player.I = Last Created Entity;
+		Wait(1, Ignore Condition);
+		Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Position Of(Event Player), 200);
+		Play Effect(All Players(All Teams), Good Pickup Effect, Color(Yellow), Position Of(Event Player), 5);
+		Wait(0.500, Ignore Condition);
+		Resurrect(Event Player);
+		Set Status(Event Player, Null, Rooted, 1);
+		Set Status(Event Player, Null, Hacked, 1);
+		Set Status(Event Player, Null, Phased Out, 1);
+		Disallow Button(Event Player, Button(Primary Fire));
+		Disallow Button(Event Player, Button(Secondary Fire));
+		Wait(1, Ignore Condition);
+		Allow Button(Event Player, Button(Primary Fire));
+		Allow Button(Event Player, Button(Secondary Fire));
+		Destroy Effect(Event Player.I);
+		Event Player.I = 0;
+	}
+}
+
+rule("147: Speed Damage")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 147;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Sky Blue);
+		Event Player.perkName = Custom String("Speed Damage");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 10;
+		Create Progress Bar HUD Text(Event Player, Event Player.G / 10, Custom String("Current Damage Dealt: {0}%", Round To Integer(
+			Event Player.G, Up)), Top, 5, Color(Sky Blue), Color(White), Visible To Values and Color, Default Visibility);
+		Event Player.H = Last Text ID;
+		While(Event Player.perkActivated == True);
+			"horizontal speed only, so jumping and falling do not count. 0% stationary, 150% at 5.5 m/s running speed, uncapped"
+			Event Player.G = Horizontal Speed Of(Event Player) / 5.500 * 150;
+			Set Damage Dealt(Event Player, Event Player.G);
+			Wait(0.100, Ignore Condition);
+		End;
+		Wait(0.250, Ignore Condition);
+		Destroy Progress Bar HUD Text(Event Player.H);
+		Event Player.G = 0;
+		Set Damage Dealt(Event Player, 100);
+		Event Player.H = 0;
+	}
+}
+
+rule("148: Kill Challenge")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 148;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Red);
+		Event Player.perkName = Custom String("Kill Challenge");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 15;
+		Event Player.G = False;
+		Big Message(Event Player, Custom String("Get a final blow before time runs out!"));
+		Wait Until(Event Player.perkActivated == False, 999999);
+		If(Event Player.G == True);
+			"success: wait for Dice Cooldown Set, then clear the cooldown"
+			Wait Until(Event Player.diceCooldown > 0, 99999);
+			Event Player.diceCooldown = 0;
+			Small Message(Event Player, Custom String("Challenge complete! Dice ready."));
+		Else If(Is Alive(Event Player) == True);
+			"failure: drop to 40% of current health"
+			Set Player Health(Event Player, Health(Event Player) * 0.400);
+			Small Message(Event Player, Custom String("Challenge failed!"));
+		End;
+		Event Player.G = 0;
+	}
+}
+
+rule("148: Kill Challenge Final Blow")
+{
+	event
+	{
+		Player Dealt Final Blow;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 148;
+		Event Player.perkActivated == True;
+		Victim != Event Player;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.G = True;
+		Event Player.perkDuration = 0;
+		Event Player.perkActivated = False;
+	}
+}
+
+rule("149: Weeping Angel")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 149;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Custom Color(160, 160, 160, 255);
+		Event Player.perkName = Custom String("Weeping Angel");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 15;
+		"godmode"
+		Set Status(Event Player, Null, Invincible, 9999);
+		Set Knockback Received(Event Player, 0);
+		"melee only"
+		Set Primary Fire Enabled(Event Player, False);
+		Set Secondary Fire Enabled(Event Player, False);
+		Set Ability 1 Enabled(Event Player, False);
+		Set Ability 2 Enabled(Event Player, False);
+		Disallow Button(Event Player, Button(Ultimate));
+		"very fast while unseen, Frozen stops all movement while seen"
+		Set Move Speed(Event Player, 200);
+		"fade is ready straight away"
+		Event Player.G = 0;
+		Big Message(Event Player, Custom String("Press Interact to Fade"));
+		"seen = a living opponent within 20m is facing the holder with line of sight"
+		While(Event Player.perkActivated == True);
+			"wait for a fade press, or until seen no longer matches the frozen state"
+			Wait Until(Event Player.perkActivated == False || (Is Button Held(Event Player, Button(Interact)) == True && Total Time Elapsed >= Event Player.G) || Has Status(Event Player, Frozen)
+				!= Is True For Any(Players Within Radius(
+				Eye Position(Event Player), 20, Opposite Team Of(Team Of(Event Player)), Off), Current Array Element != Event Player && Is Alive(
+				Current Array Element) == True && Is In View Angle(Current Array Element, Eye Position(Event Player), 45) == True
+				&& Is In Line of Sight(Eye Position(Current Array Element), Eye Position(Event Player), Barriers Do Not Block LOS) == True), 999999);
+			If(Event Player.perkActivated == True && (Is Button Held(Event Player, Button(Interact)) == True && Total Time Elapsed >= Event Player.G));
+				"fade, based on Moira: 0.8s, faster, invisible, cannot be frozen or melee, 6s cooldown"
+				Clear Status(Event Player, Frozen);
+				Set Invisible(Event Player, All);
+				Set Melee Enabled(Event Player, False);
+				Set Move Speed(Event Player, 500);
+				"only the holder sees it, so it does not give away their position"
+				Create Effect(Event Player, Sphere, Color(Black), Update Every Frame(Eye Position(Event Player)), 1, Visible To Position and Radius);
+				Event Player.H = Last Created Entity;
+				Wait(0.800, Ignore Condition);
+				Destroy Effect(Event Player.H);
+				Event Player.H = 0;
+				Set Invisible(Event Player, None);
+				Set Melee Enabled(Event Player, True);
+				Set Move Speed(Event Player, 200);
+				Event Player.G = Total Time Elapsed + 6;
+			Else;
+				"the change must hold for 0.2s to freeze, 0.3s to release"
+				Wait Until(Event Player.perkActivated == False || (Is Button Held(Event Player, Button(Interact)) == True && Total Time Elapsed >= Event Player.G) || Has Status(Event Player, Frozen)
+					== Is True For Any(Players Within Radius(
+					Eye Position(Event Player), 20, Opposite Team Of(Team Of(Event Player)), Off), Current Array Element != Event Player && Is Alive(
+					Current Array Element) == True && Is In View Angle(Current Array Element, Eye Position(Event Player), 45) == True
+					&& Is In Line of Sight(Eye Position(Current Array Element), Eye Position(Event Player), Barriers Do Not Block LOS) == True), Has Status(Event Player, Frozen) ? 0.300 : 0.200);
+				"a fade press skips the toggle and is handled on the next pass"
+				If(Event Player.perkActivated == True && (Is Button Held(Event Player, Button(Interact)) == True && Total Time Elapsed >= Event Player.G) == False && Has Status(Event Player, Frozen)
+					!= Is True For Any(Players Within Radius(
+					Eye Position(Event Player), 20, Opposite Team Of(Team Of(Event Player)), Off), Current Array Element != Event Player && Is Alive(
+					Current Array Element) == True && Is In View Angle(Current Array Element, Eye Position(Event Player), 45) == True
+					&& Is In Line of Sight(Eye Position(Current Array Element), Eye Position(Event Player), Barriers Do Not Block LOS) == True));
+					If(Has Status(Event Player, Frozen) == True);
+						Clear Status(Event Player, Frozen);
+					Else;
+						Set Status(Event Player, Null, Frozen, 9999);
+						"the watcher who froze the holder gets environmental kill credit"
+						Set Environment Credit Player(Event Player, First Of(Filtered Array(Players Within Radius(Eye Position(Event Player), 20,
+							Opposite Team Of(Team Of(Event Player)), Off), Current Array Element != Event Player && Is Alive(Current Array Element)
+							== True && Is In View Angle(Current Array Element, Eye Position(Event Player), 45) == True && Is In Line of Sight(
+							Eye Position(Current Array Element), Eye Position(Event Player), Barriers Do Not Block LOS) == True)));
+					End;
+				End;
+			End;
+		End;
+		Clear Status(Event Player, Invincible);
+		Clear Status(Event Player, Frozen);
+		Set Knockback Received(Event Player, 100);
+		Set Move Speed(Event Player, 100);
+		Set Primary Fire Enabled(Event Player, True);
+		Set Secondary Fire Enabled(Event Player, True);
+		Set Ability 1 Enabled(Event Player, True);
+		Set Ability 2 Enabled(Event Player, True);
+		Allow Button(Event Player, Button(Ultimate));
+		Event Player.G = 0;
+	}
+}
+
+rule("149: Weeping Angel Melee")
+{
+	event
+	{
+		Player Dealt Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 149;
+		Event Player.perkActivated == True;
+		Event Ability == Button(Melee);
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		"melee totals 60% of the victim's max health, counting the hero's own melee damage"
+		Damage(Victim, Event Player, Max(0, Max Health(Victim) * 0.600 - Event Damage));
+	}
+}
+
+rule("150: Earthquake")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 150;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Custom Color(139, 90, 43, 255);
+		Event Player.perkName = Custom String("Earthquake");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 10;
+		Big Message(All Players(All Teams), Custom String("Earthquake!"));
+		While(Event Player.perkActivated == True);
+			"each grounded player has a 1 in 200 chance per hop to be stunned, and the same to be knocked down"
+			Set Status(Filtered Array(All Living Players(All Teams), Is On Ground(Current Array Element) == True && Random Integer(1, 20)
+				== 1), Event Player, Stunned, 0.500);
+			Set Status(Filtered Array(All Living Players(All Teams), Is On Ground(Current Array Element) == True && Random Integer(1, 20)
+				== 1), Event Player, Knocked Down, 1);
+			"tiny hop for everyone standing on the ground"
+			Apply Impulse(Filtered Array(All Living Players(All Teams), Is On Ground(Current Array Element) == True), Up, 3, To World,
+				Cancel Contrary Motion);
+			Wait(0.100, Ignore Condition);
+		End;
+	}
+}
+
+rule("151: Hot Potato")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 151;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Orange);
+		Event Player.perkName = Custom String("Hot Potato");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 10;
+		"passed flag, set by the melee rule when the potato is handed on"
+		Event Player.G = False;
+		Big Message(Event Player, Custom String("Hot Potato! Quick melee someone to pass it on!"));
+		"also wake if a roll replaces the potato before it ends"
+		Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 151, 999999);
+		"kill whoever is still holding the potato when it ends"
+		If(Event Player.G == False && Event Player.perkActivated == False);
+			Big Message(All Players(All Teams), Custom String("{0} {1} got burned by the Hot Potato!", Hero Icon String(Hero Of(
+				Event Player)), Event Player));
+			Kill(Event Player, Null);
+		End;
+		Event Player.G = 0;
+	}
+}
+
+rule("151: Hot Potato Pass")
+{
+	event
+	{
+		Player Dealt Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 151;
+		Event Player.perkActivated == True;
+		((Hero Of(Event Player) == Hero(Brigitte) && Event Ability == Button(Primary Fire)) || (Hero Of(Event Player) == Hero(Reinhardt)
+			&& Event Ability == Button(Primary Fire)) || (Hero Of(Event Player) == Hero(Vendetta) && Event Ability == Button(Primary Fire))
+			|| (Hero Of(Event Player) == Hero(Doomfist) && Event Ability == Button(Secondary Fire)) || (Hero Of(Event Player) == Hero(
+			Hazard) && Event Ability == Button(Ability 1)) || (Hero Of(Event Player) == Hero(Ramattra) && (Event Ability == Button(
+			Ability 1) || Event Ability == Button(Ultimate)) && Event Damage >= 50) || (Hero Of(Event Player) == Hero(Torbjörn)
+			&& Event Ability == Button(Primary Fire) && Is In Alternate Form(Event Player) == True) || (Hero Of(Event Player) == Hero(
+			Venture) && Event Ability == Button(Secondary Fire)) || Event Ability == Button(Melee)) == True;
+		Victim != Event Player;
+		Is Alive(Victim) == True;
+		Victim.diceRoll != 151;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Abort If(Victim.isSelectingFavourite == True);
+		"hand over the remaining time and release the potato without killing the passer"
+		Event Player.H = Event Player.perkDuration;
+		Event Player.G = True;
+		Event Player.perkDuration = 0;
+		Event Player.perkActivated = False;
+		"end the victim's active perk first so its normal cleanup runs"
+		If(Victim.perkActivated == True);
+			Victim.perkDuration = 0;
+			Victim.perkActivated = False;
+		End;
+		Wait(0.100, Ignore Condition);
+		Abort If(Is Alive(Victim) == False);
+		Victim.perkActivated = True;
+		Victim.diceRoll = 151;
+		"let the victim's potato rule set its 10 seconds, then replace it with the passed time"
+		Wait(0.016, Ignore Condition);
+		Victim.perkDuration = Event Player.H;
+		Big Message(Victim, Custom String("{0} passed you the Hot Potato!", Event Player));
+		Event Player.H = 0;
+	}
+}
+
+rule("152: Soul Punisher")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 152;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Custom Color(190, 215, 255, 255);
+		Event Player.perkName = Custom String("Soul Punisher");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 15;
+		Big Message(Event Player, Custom String("Press Interact to fire the Soul Punisher"));
+		Wait Until((Is Alive(Event Player) == True && Is Button Held(Event Player, Button(Interact)) == True) || (
+			Event Player.perkActivated == False), 999999);
+		Abort If(Event Player.perkActivated == False);
+		"G = orb position, H = orb size, I = effect IDs, J = players caught in the explosion, L = end point, M = counter, N = last orb position"
+		Event Player.G = Eye Position(Event Player) + Facing Direction Of(Event Player) * 0.800 - Vector(0, 0.250, 0);
+		Event Player.H = 0.200;
+		"keep the orb in front of the chest until launch"
+		Chase Player Variable At Rate(Event Player, G, Eye Position(Event Player) + Facing Direction Of(Event Player) * 0.800 - Vector(0,
+			0.250, 0), 100, Destination and Rate);
+		"white core, shimmering rainbow layer and star sparkles"
+		Event Player.I = Empty Array;
+		Create Effect(All Players(All Teams), Sphere, Color(White), Update Every Frame(Event Player.G), Event Player.H * 0.400,
+			Visible To Position Radius and Color);
+		Modify Player Variable(Event Player, I, Append To Array, Last Created Entity);
+		Create Effect(All Players(All Teams), Sphere, Custom Color(170 + 85 * Sine From Degrees(Total Time Elapsed * 720), 170 + 85 * Sine From Degrees(
+			Total Time Elapsed * 720 + 120), 170 + 85 * Sine From Degrees(Total Time Elapsed * 720 + 240), 255), Update Every Frame(
+			Event Player.G), Event Player.H * 0.700, Visible To Position Radius and Color);
+		Modify Player Variable(Event Player, I, Append To Array, Last Created Entity);
+		Create Effect(All Players(All Teams), Sparkles, Color(White), Update Every Frame(Event Player.G), Event Player.H,
+			Visible To Position Radius and Color);
+		Modify Player Variable(Event Player, I, Append To Array, Last Created Entity);
+		"charge: grow over 0.8s with four pulses"
+		Chase Player Variable Over Time(Event Player, H, 1, 0.800, Destination and Duration);
+		Event Player.M = 0;
+		While(Event Player.M < 4 && Event Player.perkActivated == True && Event Player.diceRoll == 152 && Is Alive(Event Player) == True);
+			Play Effect(All Players(All Teams), Ring Explosion, Color(Aqua), Event Player.G, 1 + Event Player.M * 0.400);
+			Play Effect(All Players(All Teams), Buff Impact Sound, Color(White), Event Player.G, 40);
+			Wait(0.200, Ignore Condition);
+			Event Player.M += 1;
+		End;
+		If(Event Player.perkActivated == True && Event Player.diceRoll == 152 && Is Alive(Event Player) == True);
+			"fire straight where the player is looking, ending at the first wall"
+			Event Player.L = Ray Cast Hit Position(Event Player.G, Event Player.G + Facing Direction Of(Event Player) * 240, Null,
+				Event Player, False);
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+			Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Event Player.G, 200);
+			Chase Player Variable At Rate(Event Player, G, Event Player.L, 40, Destination and Rate);
+			"fly until it touches an opponent, reaches the wall, hits a barrier, or 6 seconds pass"
+			Event Player.M = Total Time Elapsed + 6;
+			Event Player.N = Event Player.G;
+			While(Total Time Elapsed < Event Player.M && Distance Between(Event Player.G, Event Player.L) > 0.500 && Is In Line of Sight(
+				Event Player.N, Event Player.G, Enemy Barriers Block LOS) == True && Is True For Any(Players Within Radius(Event Player.G, 2,
+				Opposite Team Of(Team Of(Event Player)), Off), Current Array Element != Event Player && Is Alive(Current Array Element)
+				== True) == False);
+				Play Effect(All Players(All Teams), Good Pickup Effect, Color(Aqua), Event Player.G, 0.500);
+				Event Player.N = Event Player.G;
+				Wait(0.050, Ignore Condition);
+			End;
+			Stop Chasing Player Variable(Event Player, G);
+			"stopped by a barrier: explode at the last clear point"
+			If(Is In Line of Sight(Event Player.N, Event Player.G, Enemy Barriers Block LOS) == False);
+				Event Player.G = Event Player.N;
+			End;
+			"explosion: flash, colour bursts and shockwaves while the orb swells and fades"
+			Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.G, 3);
+			Play Effect(All Players(All Teams), Good Explosion, Color(Turquoise), Event Player.G, 6);
+			Play Effect(All Players(All Teams), Good Explosion, Color(Purple), Event Player.G, 8);
+			Play Effect(All Players(All Teams), Good Explosion, Color(Yellow), Event Player.G, 5);
+			Play Effect(All Players(All Teams), Ring Explosion, Color(White), Event Player.G, 14);
+			Play Effect(All Players(All Teams), Ring Explosion, Color(Violet), Event Player.G, 20);
+			Play Effect(All Players(All Teams), Explosion Sound, Color(White), Event Player.G, 200);
+			Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Event Player.G, 200);
+			Chase Player Variable Over Time(Event Player, H, 12, 0.300, Destination and Duration);
+			Wait(0.300, Ignore Condition);
+			"at full size, damage every opponent inside the rainbow sphere, each by their own hidden final blows"
+			Event Player.J = Filtered Array(Players Within Radius(Event Player.G, Event Player.H * 0.700, Opposite Team Of(Team Of(
+				Event Player)), Surfaces And All Barriers), Current Array Element != Event Player && Is Alive(Current Array Element) == True);
+			Chase Player Variable Over Time(Event Player, H, 0, 0.600, Destination and Duration);
+			For Player Variable(Event Player, M, 0, Count Of(Event Player.J), 1);
+				Damage(Event Player.J[Event Player.M], Event Player, 100 + Event Player.J[Event Player.M].soulScore * 25);
+				Small Message(Event Player, Custom String("Soul Punisher hit {0} for {1}", Event Player.J[Event Player.M],
+					100 + Event Player.J[Event Player.M].soulScore * 25));
+				"messages read their values a moment later, so hold M on this player until it has"
+				Wait(0.100, Ignore Condition);
+			End;
+			Wait(0.600, Ignore Condition);
+		Else If(Event Player.diceRoll == 152);
+			"charge interrupted by death: end the perk"
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+		End;
+		"cleanup"
+		Stop Chasing Player Variable(Event Player, G);
+		Stop Chasing Player Variable(Event Player, H);
+		Destroy Effect(Event Player.I[0]);
+		Destroy Effect(Event Player.I[1]);
+		Destroy Effect(Event Player.I[2]);
+		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.I = 0;
+		Event Player.J = 0;
+		Event Player.L = 0;
+		Event Player.M = 0;
+		Event Player.N = 0;
+	}
+}
+
+rule("153: Devil's Bullet")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 153;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Custom Color(40, 110, 255, 255);
+		Event Player.perkName = Custom String("Devil's Bullet");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 20;
+		"G = bullets fired, H = players hit (bullet 7: the devil's target), I = where the bullet stops, J = effect IDs, K = loop index"
+		Event Player.G = 0;
+		Big Message(Event Player, Custom String("Press Interact to shoot. 7 bullets, the last belongs to the devil."));
+		"bullets 1 to 6. the timer is caught with 0.1s left, so expiry still fires the 7th but a stolen or replaced perk does not"
+		While(Event Player.G < 6 && Event Player.perkActivated == True && Event Player.diceRoll == 153 && Event Player.perkDuration > 0.100);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 153 || Event Player.perkDuration <= 0.100 || (Is Button Held(Event Player, Button(Interact)) == True && Is Alive(Event Player) == True), 999999);
+			If(Event Player.perkActivated == True && Event Player.diceRoll == 153 && Event Player.perkDuration > 0.100 && (Is Button Held(Event Player, Button(Interact)) == True && Is Alive(Event Player) == True));
+				"the bullet always travels the full 200m, through walls and players"
+				Event Player.I = Eye Position(Event Player) + Facing Direction Of(Event Player) * 200;
+				"pierce: every living opponent within 1m of the bullet's path"
+				Event Player.H = Filtered Array(All Living Players(Opposite Team Of(Team Of(Event Player))), Current Array Element != Event Player
+					&& Dot Product(Position Of(Current Array Element) + Vector(0, 1, 0) - Eye Position(Event Player), Facing Direction Of(Event Player)) >= 0 && Dot Product(Position Of(Current Array Element) + Vector(0, 1, 0) - Eye Position(Event Player), Facing Direction Of(Event Player)) <= Distance Between(Eye Position(Event Player), Event Player.I) && Distance Between(Position Of(Current Array Element) + Vector(0, 1, 0), Eye Position(Event Player) + Facing Direction Of(Event Player) * Dot Product(Position Of(Current Array Element) + Vector(0, 1, 0) - Eye Position(Event Player), Facing Direction Of(Event Player))) <= 1);
+				Damage(Event Player.H, Event Player, 150);
+				Event Player.G += 1;
+				"magic circles in front of the muzzle, below eye level so they do not blind the shooter: 1, 1, 2, 2, 3, 4 for bullets 1 to 6"
+				Event Player.J = Empty Array;
+				For Player Variable(Event Player, K, 0, Event Player.G <= 2 ? 1 : (Event Player.G <= 4 ? 2 : (Event Player.G == 5 ? 3 : 4)), 1);
+					Create Effect(All Players(All Teams), Sphere, Color(Blue), Eye Position(Event Player) + Facing Direction Of(Event Player) * (1.500 + Event Player.K * 0.700) - Vector(0, 0.400, 0), 0.400, None);
+					Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+					Create Effect(All Players(All Teams), Orb, Color(Aqua), Eye Position(Event Player) + Facing Direction Of(Event Player) * (1.500 + Event Player.K * 0.700) - Vector(0, 0.400, 0), 0.250, None);
+					Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+				End;
+				"the bullet"
+				Create Beam Effect(All Players(All Teams), Good Beam, Eye Position(Event Player) + Facing Direction Of(Event Player) * 1.500 - Vector(0, 0.400, 0), Event Player.I, Color(Sky Blue), None);
+				Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+				"small blue hit on every opponent pierced"
+				For Player Variable(Event Player, K, 0, Count Of(Event Player.H), 1);
+					Play Effect(All Players(All Teams), Bad Explosion, Color(Blue), Eye Position(Event Player.H[Event Player.K]), 1);
+				End;
+				Play Effect(All Players(All Teams), Explosion Sound, Color(White), Eye Position(Event Player), 60);
+				Small Message(Event Player, Custom String("Bullet {0} of 7", Event Player.G));
+				"short gaps that end early if time is nearly up"
+				Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 153 || Event Player.perkDuration <= 0.100, 0.250);
+				For Player Variable(Event Player, K, 0, Count Of(Event Player.J), 1);
+					Destroy Effect(Event Player.J[Event Player.K]);
+				End;
+				Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 153 || Event Player.perkDuration <= 0.100, 0.250);
+				"one bullet per press"
+				Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 153 || Event Player.perkDuration <= 0.100 || Is Button Held(Event Player, Button(Interact)) == False, 999999);
+			End;
+		End;
+		"after six bullets, the 7th fires on the next press, or by itself as time runs out"
+		If(Event Player.G == 6 && Event Player.perkActivated == True && Event Player.diceRoll == 153 && Event Player.perkDuration > 0.100);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 153 || Event Player.perkDuration <= 0.100 || (Is Button Held(Event Player, Button(Interact)) == True && Is Alive(Event Player) == True), 999999);
+		End;
+		"bullet 7 only fires while the perk is still this player's Devil's Bullet, never after it was stolen, infected or replaced"
+		If(Event Player.perkActivated == True && Event Player.diceRoll == 153);
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+			"the devil chooses any living player, the shooter included, and the bullet lands at once"
+			Event Player.H = Random Value In Array(All Living Players(All Teams));
+			If(Event Player.H != Null);
+				Damage(Event Player.H, Event Player.H == Event Player ? Null : Event Player, 300);
+				Big Message(All Players(All Teams), Custom String("The devil's bullet chooses {0} {1}", Hero Icon String(Hero Of(Event Player.H)),
+					Event Player.H));
+				"five large magic circles in front of the shooter, below eye level, and a cyan flash at the far end"
+				Event Player.J = Empty Array;
+				For Player Variable(Event Player, K, 0, 5, 1);
+					Create Effect(All Players(All Teams), Sphere, Color(Blue), Eye Position(Event Player) + Facing Direction Of(Event Player) * (2 + Event Player.K) - Vector(0, 0.400, 0), 0.700 + Event Player.K * 0.100, None);
+					Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+					Create Effect(All Players(All Teams), Orb, Color(Aqua), Eye Position(Event Player) + Facing Direction Of(Event Player) * (2 + Event Player.K) - Vector(0, 0.400, 0), 0.400 + Event Player.K * 0.080, None);
+					Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+				End;
+				Play Effect(All Players(All Teams), Good Explosion, Color(Aqua), Eye Position(Event Player) + Facing Direction Of(Event Player) * 6 - Vector(0, 0.400, 0), 1);
+				"the bullet comes out of a portal behind the victim, wherever they are. if the devil chose the shooter, it comes from behind them"
+				Create Effect(All Players(All Teams), Sphere, Color(Blue), Eye Position(Event Player.H) - Facing Direction Of(Event Player.H) * 3 + Vector(0, 0.500,
+					0), 1, None);
+				Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+				Create Beam Effect(All Players(All Teams), Good Beam, Eye Position(Event Player.H) - Facing Direction Of(Event Player.H) * 3 + Vector(0, 0.500, 0),
+					Eye Position(Event Player.H), Color(Sky Blue), None);
+				Modify Player Variable(Event Player, J, Append To Array, Last Created Entity);
+				"dark blue impact with a red accent"
+				Play Effect(All Players(All Teams), Bad Explosion, Color(Blue), Eye Position(Event Player.H), 3);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(Sky Blue), Position Of(Event Player.H), 9);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(Red), Position Of(Event Player.H), 5);
+				Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Position Of(Event Player.H), 200);
+				Play Effect(All Players(All Teams), Explosion Sound, Color(White), Eye Position(Event Player), 200);
+				Wait(0.500, Ignore Condition);
+				For Player Variable(Event Player, K, 0, Count Of(Event Player.J), 1);
+					Destroy Effect(Event Player.J[Event Player.K]);
+				End;
+			End;
+		End;
+		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.I = 0;
+		Event Player.J = 0;
+		Event Player.K = 0;
+	}
+}
+
+rule("154: Psychokinesis")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 154;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Violet);
+		Event Player.perkName = Custom String("Psychokinesis");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 15;
+		"G = victim, H = victim's forced position, I = top of the lift"
+		Event Player.G = 0;
+		Big Message(Event Player, Custom String("Press Interact on an opponent at 50% health or less."));
+		"targeting, a miss does not use up the perk"
+		While(Event Player.G == 0 && Event Player.perkActivated == True && Event Player.diceRoll == 154);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 154 || (Is Button Held(Event Player, Button(Interact))
+				== True && Is Alive(Event Player) == True), 999999);
+			If(Event Player.perkActivated == True && Event Player.diceRoll == 154 && Is Button Held(Event Player, Button(Interact)) == True
+				&& Is Alive(Event Player) == True);
+				"the opponent closest to the crosshair, if alive, in sight and at 50% health or less"
+				Event Player.H = Player Closest To Reticle(Event Player, Opposite Team Of(Team Of(Event Player)));
+				If(Event Player.H != Null && Event Player.H != Event Player && Is Alive(Event Player.H) == True && Is In Line of Sight(
+					Eye Position(Event Player), Eye Position(Event Player.H), Barriers Do Not Block LOS) == True && Normalized Health(
+					Event Player.H) <= 0.500);
+					Event Player.G = Event Player.H;
+				End;
+				Event Player.H = 0;
+				"one attempt per press"
+				Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 154 || Is Button Held(Event Player, Button(Interact))
+					== False, 999999);
+			End;
+		End;
+		If(Event Player.G != 0);
+			"lift the victim 8m over 1.5 seconds, they cannot move, and the user is forced to watch"
+			Event Player.H = Position Of(Event Player.G);
+			Event Player.I = Event Player.H + Vector(0, 8, 0);
+			Start Forcing Player Position(Event Player.G, Event Player.H, True);
+			Chase Player Variable Over Time(Event Player, H, Event Player.I, 1.500, Destination and Duration);
+			Start Facing(Event Player, Update Every Frame(Direction Towards(Eye Position(Event Player), Eye Position(Event Player.G))), 10000,
+				To World, Direction and Turn Rate);
+			"stops early if the victim dies or leaves"
+			Wait Until(Is Alive(Event Player.G) == False, 1.500);
+			Stop Chasing Player Variable(Event Player, H);
+			"anticipation: held at the top while three growing pulses build up, I counts the pulses"
+			Event Player.I = 0;
+			While(Event Player.I < 3 && Is Alive(Event Player.G) == True);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(Orange), Eye Position(Event Player.G), 2 + Event Player.I * 1.500);
+				Play Effect(All Players(All Teams), Debuff Impact Sound, Color(White), Eye Position(Event Player.G), 150);
+				Wait Until(Is Alive(Event Player.G) == False, 0.350);
+				Event Player.I += 1;
+			End;
+			Wait Until(Is Alive(Event Player.G) == False, 0.250);
+			Stop Forcing Player Position(Event Player.G);
+			"explode: 99999 damage to every living player within 6m, the user included"
+			If(Is Alive(Event Player.G) == True);
+				Event Player.H = Eye Position(Event Player.G);
+				Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.H, 3);
+				Play Effect(All Players(All Teams), Bad Explosion, Color(Orange), Event Player.H, 6);
+				Play Effect(All Players(All Teams), Good Explosion, Color(Yellow), Event Player.H, 5);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(Orange), Event Player.H, 10);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(White), Event Player.H, 14);
+				Play Effect(All Players(All Teams), Explosion Sound, Color(White), Event Player.H, 200);
+				Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Event Player.H, 200);
+				Play Effect(All Players(All Teams), Ring Explosion Sound, Color(White), Event Player.H, 200);
+				Damage(Filtered Array(Players Within Radius(Event Player.H, 6, All Teams, Off), Is Alive(Current Array Element) == True),
+					Event Player, 99999);
+				"keep the user looking at the blast for a moment"
+				Wait(0.500, Ignore Condition);
+			End;
+			Stop Facing(Event Player);
+			"one execution per roll"
+			If(Event Player.perkActivated == True && Event Player.diceRoll == 154);
+				Event Player.perkDuration = 0;
+				Event Player.perkActivated = False;
+			End;
+		End;
+		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.I = 0;
+	}
+}
+
+rule("155: One Trick")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 155;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Lime Green);
+		Event Player.perkName = Custom String("One Trick");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 10;
+		"G = the one ability left: 1 secondary fire, 2 ability 1, 3 ability 2. primary fire stays"
+		Event Player.G = Random Integer(1, 3);
+		Set Secondary Fire Enabled(Event Player, Event Player.G == 1);
+		Set Ability 1 Enabled(Event Player, Event Player.G == 2);
+		Set Ability 2 Enabled(Event Player, Event Player.G == 3);
+		"disallow rather than disable, so ultimate charge is kept"
+		Disallow Button(Event Player, Button(Ultimate));
+		Big Message(Event Player, Event Player.G == 1 ? Custom String("Only Secondary Fire works, with no cooldown!") : (Event Player.G == 2
+			? Custom String("Only Ability 1 works, with no cooldown!") : Custom String("Only Ability 2 works, with no cooldown!")));
+		"no cooldown on the chosen ability"
+		While(Event Player.perkActivated == True && Event Player.diceRoll == 155);
+			Set Ability Cooldown(Event Player, Event Player.G == 1 ? Button(Secondary Fire) : (Event Player.G == 2 ? Button(Ability 1) : Button(Ability 2)), 0);
+			Set Ability Charge(Event Player, Event Player.G == 1 ? Button(Secondary Fire) : (Event Player.G == 2 ? Button(Ability 1) : Button(Ability 2)), 1000);
+			Wait(0.050, Ignore Condition);
+		End;
+		Set Secondary Fire Enabled(Event Player, True);
+		Set Ability 1 Enabled(Event Player, True);
+		Set Ability 2 Enabled(Event Player, True);
+		Allow Button(Event Player, Button(Ultimate));
+		Event Player.G = 0;
+	}
+}
+
+rule("156: Poisoned")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 156;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Custom Color(110, 170, 30, 255);
+		Event Player.perkName = Custom String("Poisoned");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 30;
+		Big Message(Event Player, Custom String("Poisoned! Each health pack has a 1 in 10 chance to cure you."));
+		"mild poison damage so you are never at full health and can always pick up a health pack. G = its ID"
+		Start Damage Over Time(Event Player, Null, 9999, 5);
+		Event Player.G = Last Damage Over Time ID;
+		"running out is caught with 0.1s left, so a cure or interruption is not mistaken for the poison finishing"
+		Wait Until(Event Player.perkActivated == False || Event Player.perkDuration <= 0.100, 999999);
+		Stop Damage Over Time(Event Player.G);
+		Event Player.G = 0;
+		If(Event Player.perkActivated == True && Event Player.diceRoll == 156);
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+			If(Is Alive(Event Player) == True);
+				Big Message(Event Player, Custom String("The poison got you."));
+				Kill(Event Player, Null);
+			End;
+		End;
+	}
+}
+
+rule("156: Poisoned Health Pack")
+{
+	event
+	{
+		Player Received Healing;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 156;
+		Event Player.perkActivated == True;
+		Event Was Health Pack == True;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		"1 in 10 chance the health pack cures the poison"
+		If(Random Integer(1, 10) == 1);
+			Big Message(Event Player, Custom String("Cured!"));
+			Play Effect(Event Player, Buff Explosion Sound, Color(White), Position Of(Event Player), 100);
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+		Else;
+			Small Message(Event Player, Custom String("The health pack didn't cure the poison."));
+		End;
+	}
+}
+
+rule("157: Alien Invasion")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 157;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Lime Green);
+		Event Player.perkName = Custom String("Alien Invasion");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 15;
+		"G = invaded players, H = their original heroes, I = their original ultimate charge, K = loop index"
+		"skips dummy bots and anyone whose own perk already forces their hero"
+		Event Player.G = Filtered Array(All Players(All Teams), Is Dummy Bot(Current Array Element) == False && Array Contains(Array(44, 46,
+			47, 81, 119, 146), Current Array Element.diceRoll) == False);
+		Event Player.H = Mapped Array(Event Player.G, Hero Of(Current Array Element));
+		Event Player.I = Mapped Array(Event Player.G, Ultimate Charge Percent(Current Array Element));
+		Big Message(All Players(All Teams), Custom String("{0} {1} started an Alien Invasion!", Hero Icon String(Hero Of(Event Player)),
+			Event Player));
+		Start Forcing Player To Be Hero(Event Player.G, Hero(Juno));
+		"every invader gets their own random size, picked once (re-evaluating it re-rolled the size every frame)"
+		For Player Variable(Event Player, K, 0, Count Of(Event Player.G), 1);
+			Start Scaling Player(Event Player.G[Event Player.K], Random Real(0.500, 1.750), False);
+		End;
+		"infinite ultimates and no cooldowns, same method as No Cooldowns"
+		While(Event Player.perkActivated == True);
+			Set Ultimate Charge(Event Player.G, 100);
+			Set Ability Cooldown(Event Player.G, Button(Ability 1), 0);
+			Set Ability Charge(Event Player.G, Button(Ability 1), 1000);
+			Set Ability Cooldown(Event Player.G, Button(Ability 2), 0);
+			Set Ability Charge(Event Player.G, Button(Ability 2), 1000);
+			Set Ability Cooldown(Event Player.G, Button(Secondary Fire), 0);
+			Set Ability Charge(Event Player.G, Button(Secondary Fire), 1000);
+			Set Ability Cooldown(Event Player.G, Button(Jump), 0);
+			Set Ability Charge(Event Player.G, Button(Jump), 1000);
+			Wait(0.100, Ignore Condition);
+		End;
+		"restore everyone's original size, hero, then their original ultimate charge"
+		Stop Scaling Player(Event Player.G);
+		For Player Variable(Event Player, K, 0, Count Of(Event Player.G), 1);
+			Start Forcing Player To Be Hero(Event Player.G[Event Player.K], Event Player.H[Event Player.K]);
+			Stop Forcing Player To Be Hero(Event Player.G[Event Player.K]);
+		End;
+		Wait(0.500, Ignore Condition);
+		For Player Variable(Event Player, K, 0, Count Of(Event Player.G), 1);
+			Set Ultimate Charge(Event Player.G[Event Player.K], Event Player.I[Event Player.K]);
+		End;
+		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.I = 0;
+		Event Player.K = 0;
 	}
 }
