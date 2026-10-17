@@ -9259,7 +9259,7 @@ rule("156: Poisoned")
 		Event Player.perkColour = Custom Color(110, 170, 30, 255);
 		Event Player.perkName = Custom String("Poisoned");
 		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.perkDuration = 20;
+		Event Player.perkDuration = 30;
 		Big Message(Event Player, Custom String("Poisoned! Each health pack has a 1 in 10 chance to cure you."));
 		"mild poison damage so you are never at full health and can always pick up a health pack. G = its ID"
 		Start Damage Over Time(Event Player, Null, 9999, 5);
