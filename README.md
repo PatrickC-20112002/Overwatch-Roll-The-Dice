@@ -1,178 +1,109 @@
-
 # 🎲 Roll The Dice
 
-**Roll The Dice (RTD)** is an Overwatch Workshop Deathmatch / Free-For-All game mode where players can roll the dice to receive one of over 100 random perks.
+**Roll The Dice (RTD)** is a custom **Overwatch Workshop Deathmatch / Free-For-All** mode. Press **Interact** to roll the dice and receive one of **157 random perks** that might help you, hurt you, or completely change how you play.
 
-Each perk can help or hinder the player, ranging from simple stat modifications to entirely new abilities, hero transformations, unique mechanics and chaotic effects.
+Inspired by the *Team Fortress 2* Roll the Dice server plugin, RTD combines unpredictable stat changes with custom abilities, hero transformations, unusual challenges and spectacular attacks.
 
-Inspired by the **Roll the Dice** server plugin from *Team Fortress 2*, RTD expands on the original concept with mechanics designed specifically around Overwatch and its heroes.
-
-## Current Version
+## Current Release
 
 | | |
 | --- | --- |
-| **Stable Version** | V2.4 |
-| **Workshop Code** | `4C92C` |
-| **Available Perks** | 145 |
-| **Game Mode** | Deathmatch / Free-For-All |
-| **Development Version** | V2.5 |
+| **Stable Version** | **V2.5** |
+| **Available Perks** | **157** |
+| **Game Mode** | **Deathmatch / Free-For-All (FFA)** |
+| **V2.5 Workshop Import Code** | **`REPLACE_WITH_V2_5_CODE`** |
+| **Previous Version** | V2.4 (`4C92C`) |
 
-**V2.5 is currently in development**, with 146 perks implemented so far.
-
-The `main` branch contains the current stable version, while the `dev` branch contains ongoing development.
+> **Release setup:** Replace `REPLACE_WITH_V2_5_CODE` with the published V2.5 Overwatch Workshop code before releasing this README. `4C92C` is the previous V2.4 code, **not** a verified V2.5 code.
 
 ## How to Play
 
-1. Launch Overwatch.
-2. Create a Custom Game.
-3. Open the Custom Game settings.
-4. Select **Import Code**.
-5. Enter the Workshop code: `4C92C`.
-6. Start the game.
-7. Press **Interact** to roll the dice.
+1. Open **Overwatch** and create a **Custom Game**.
+2. Open the Custom Game settings and select **Import Code**.
+3. Enter the **V2.5 Workshop Import Code** shown above, once published.
+4. Start a Deathmatch match.
+5. Press **Interact** to roll the dice.
+6. Play with your random perk until it expires or ends. After the Dice Cooldown, you can roll again.
 
-A random perk will activate, granting either a positive, negative or unpredictable effect.
+Each perk is different. Some give powerful buffs, some impose handicaps, and others introduce their own inputs, objectives or interactions with other players.
 
-Once the perk expires, players must wait for their Dice Cooldown before rolling again.
+## What's New in V2.5?
+
+- **157 total perks**, up from 145 in V2.4.
+- New abilities and challenges, including **Soul Punisher**, **Devil's Bullet**, **Psychokinesis**, **Weeping Angel**, **Hot Potato**, **Poisoned** and **Alien Invasion**.
+- **Spirit Bomb** replaces **Legendary Warrior**, and **Cursed Speech** replaces **Innate Strength**.
+- Major reworks for **Sorcerer's Jackpot**, **Soul Link**, **Equalizer** and **Grounded**.
+- Reworked **Favourite Perks**, with a higher default roll chance and new **Rare Favourite Perks**.
+- A custom **Soul Score** counter, HUD improvements, bug fixes and Workshop optimisations.
+- Updated map pool.
+
+Read the [full V2.5 patch notes](CHANGELOG.md#v25) for all gameplay changes and exact stats.
 
 ## Features
 
-- Over **145 unique perks**.
-- Randomised positive, negative and chaotic effects.
-- Custom abilities, attacks and mechanics.
-- Hero transformations and ability modifications.
-- Custom visual and sound effects.
-- Unique perk interactions.
-- Custom HUD elements and progress bars.
-- Configurable Favourite Perk system.
-- Duration Modifier system.
-- Regular perk additions, reworks and improvements.
+- **157 perks** ranging from straightforward buffs and debuffs to elaborate custom mechanics.
+- **Deathmatch-first gameplay**, with random rolls and a Dice Cooldown between perks.
+- **Favourite Perks** with adjustable roll probability and rarer choices for particularly impactful perks.
+- **Duration Modifiers** that can carry over and stack for eligible future perks.
+- **Soul Score**, a custom Final Blow counter used by certain perks.
+- Custom on-screen information, progress bars, announcements and visual effects.
+- Hero transformations, custom abilities and interactions between different perks.
 
 ### Example Perks
 
-- **GodMode**
-- **Noclip**
-- **Pocket Mercy**
-- **One Punch Man**
-- **A-Train**
-- **The Floor Is Lava**
-- **Sorcerer's Jackpot**
-- **Black Flash**
-- **Cursed Swap**
-- **Hamon**
+| Perk | What It Does |
+| --- | --- |
+| **Spirit Bomb (145)** | Survive the preparation phase to unleash a massive finishing attack. |
+| **Soul Punisher (152)** | Fire a rainbow energy blast whose damage scales with each target's Soul Score. |
+| **Devil's Bullet (153)** | Fire six piercing shots before the Devil chooses the seventh shot's victim. |
+| **Psychokinesis (154)** | Lift a weakened opponent and trigger a devastating area explosion. |
+| **Hot Potato (151)** | Pass a lethal countdown to another player with melee attacks. |
+| **Weeping Angel (149)** | Move and attack as long as nobody is watching you. |
+| **Sorcerer's Jackpot (102)** | Gamble for an extended, powerful Jackpot. |
+| **Alien Invasion (157)** | Temporarily turn eligible players into Junos with unlimited ultimates. |
 
-Some perks have simple effects, while others introduce completely new gameplay mechanics.
+Many other perks, including **GodMode**, **Noclip**, **One Punch Man**, **Black Flash** and **Cursed Swap**, are also part of RTD.
 
-## Favourite Perk System
+## Favourite Perks
 
-Roll The Dice includes an optional **Favourite Perk** system.
+Players can select a Favourite Perk before entering the match and may change it through the Favourite Perk interface.
 
-Before playing, players can select a perk as their favourite.
+- The default chance of receiving a normal Favourite Perk is **1 in 5**.
+- **Rare Favourite Perks** can also be selected but have **half the usual chance** (default **1 in 10**).
+- The menu displays a perk's Favourite roll chance, with Rare Favourite Perks highlighted in orange.
+- The default probability can be adjusted using the mode's Workshop settings.
+- The Favourite Perk system can be disabled through Workshop settings.
 
-Each time they roll the dice, there is a configurable chance that their favourite perk will be selected instead of a completely random perk.
+## Duration Modifiers and Soul Score
 
-### Features
+**Double Duration (126)** and **Halved Duration (127)** modify the duration of eligible future perks. Modifiers can stack, and pending modifiers appear on the HUD. **Ban Hammer (46)** and **Spirit Bomb (145)** are exempt, so the modifiers remain pending for the next eligible perk.
 
-- Select a favourite perk before entering the game.
-- Navigate the perk list using Primary Fire, Secondary Fire and abilities.
-- Configure the probability of rolling a favourite.
-- Change your favourite while dead or in the spawn room.
-- Disable the system entirely through Workshop settings.
+**Soul Score** tracks Final Blows independently from Overwatch's Deathmatch scoreboard. It appears in RTD's HUD and is used to determine the damage taken from **Soul Punisher (152)**.
 
-Certain perks cannot be selected as favourites because of their mechanics or potential impact on gameplay.
+## Source Code and Development
 
-## Duration Modifier System
-
-Some perks can modify the duration of future perks.
-
-**Double Duration** and **Halved Duration** apply modifiers that can stack and affect the next applicable perk.
-
-Players can view their current pending modifier through the custom HUD.
-
-This system was introduced in **V2.4**.
-
-## Development
-
-Roll The Dice is developed using the **Overwatch Workshop**, **OverPy** and **Visual Studio Code**.
-
-The repository contains the project's source code and version history.
-
-### Branches
+The game mode is built with the **Overwatch Workshop**. Its source code is maintained in [`src/RollTheDice.opy`](src/RollTheDice.opy).
 
 | Branch | Purpose |
 | --- | --- |
-| `main` | Current stable/public release |
-| `dev` | Active development and testing |
+| [`main`](../../tree/main) | Stable public releases. |
+| [`dev`](../../tree/dev) | Development and testing for future updates. |
 
-Development changes are made on `dev`.
+New features are developed and tested on `dev` before being released to `main`. Earlier versions are preserved in Git history.
 
-Once a new version has been completed and tested, the stable changes can be merged into `main`.
+For release history, see [`CHANGELOG.md`](CHANGELOG.md). Issues and unexpected perk behaviour can be reported through the [GitHub issue tracker](../../issues).
 
-### Version Management
+## Previous Releases
 
-- Work on new perks, improvements and bug fixes in `dev`.
-- Keep unfinished changes out of `main`.
-- Update the changelog when preparing a new release.
-- Merge tested releases into `main`.
-- Use Git tags to preserve released versions.
+- **V2.5:** Current release, 157 perks. See the [V2.5 changelog](CHANGELOG.md#v25).
+- **V2.4:** 145 perks, Workshop code `4C92C`. See the [V2.4 changelog](CHANGELOG.md#v24).
+- **V2.3.0**, **V2.2.7** and **V2.2.6:** Preserved in repository history.
+- Legacy and Celebration Edition versions are also preserved in Git history.
 
-### Version History
+## Credits and Disclaimer
 
-Previous versions preserved through Git include:
+**Created by Patrick Carroll / MarkedDerp.**
 
-- V2.2.6
-- V2.2.7
-- V2.3.0
-- V2.4
+RTD is an independent, unofficial fan-made Overwatch Workshop project inspired by the *Team Fortress 2* Roll the Dice plugin.
 
-Earlier versions, including Legacy and Celebration Edition, are also preserved in the project's history.
-
-## Releases
-
-### V2.4 — Current Stable Version
-
-**Workshop Code:** `4C92C`
-
-**145 available perks**
-
-Major changes include:
-
-- Extensive perk optimisations.
-- New Duration Modifier system.
-- New perks.
-- Perk reworks and balance changes.
-- Bug fixes and general improvements.
-
-See [CHANGELOG.md](CHANGELOG.md) for the full V2.4 patch notes.
-
-### V2.5 — In Development
-
-V2.5 is currently being developed on the `dev` branch.
-
-Development includes:
-
-- New perks.
-- Existing perk reworks.
-- Bug fixes.
-- Gameplay improvements.
-- Further optimisation.
-
-**146 perks are currently implemented.**
-
-V2.5 patch notes will be published when the update is ready for release.
-
-## Inspiration
-
-Roll The Dice was originally inspired by the **Roll the Dice (RTD)** server plugin from *Team Fortress 2*, which grants players random effects that can either benefit or disadvantage them.
-
-This Overwatch version is an independent Workshop implementation, expanding the concept with a large collection of custom perks and systems.
-
-## Credits
-
-**Created by Patrick Carroll / MarkedDerp**
-
-Roll The Dice is an unofficial fan-made Overwatch Workshop project.
-
-Overwatch and its characters, names and related assets are the property of Blizzard Entertainment.
-
-This project is not affiliated with or endorsed by Blizzard Entertainment.
+Overwatch and related characters, names and assets belong to Blizzard Entertainment. This project is not affiliated with or endorsed by Blizzard Entertainment.
