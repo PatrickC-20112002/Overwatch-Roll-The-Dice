@@ -65,8 +65,8 @@ rule("Global Setup: Favourite Perk, Perk Total, AD TEXT")
 		"favourite roll chance (1 in _), read once here because a Workshop Setting may only be referenced once"
 		Global.favouriteChance = Workshop Setting Integer(Custom String("Favourite Perk"), Custom String("Favourite Roll Chance (1 in _ chance)"), 5, 1, 10, 0);
 		"rare favourite perks (half the normal favourite chance) and total number of perks"
-		Global.bannedFav = Array(64, 65, 86, 97, 102, 105, 46, 118, 134, 145);
-		Global.perkTotal = 153;
+		Global.bannedFav = Array(64, 65, 86, 97, 102, 105, 46, 118, 134, 145, 151, 154);
+		Global.perkTotal = 154;
 		"AD TEXT"
 		Create HUD Text(All Players(All Teams), Custom String("ROLL THE DICE {0} {1} {2}", Server Load, Server Load Average,
 			Server Load Peak), Null, Null, Left, 1, Color(Sky Blue), Null, Null, Visible To Sort Order String and Color,
@@ -152,7 +152,7 @@ rule("Int Select")
 		"the line under the perk name shows its favourite chance, rare favourites in orange"
 		Create HUD Text(Event Player, Custom String("({2}/{1}) {0}", Event Player.perkName, Global.perkTotal, Event Player.diceRoll),
 			Event Player.diceRoll == 0 ? Custom String("Every perk has an equal chance") : (Array Contains(Global.bannedFav,
-			Event Player.diceRoll) ? Custom String("RARE FAVOURITE - 1 in {0} chance", Global.favouriteChance * (Custom String("{0}", Event Player) != Custom String("Zamasu") ? 2 : 1)) : Custom String(
+			Event Player.diceRoll) ? Custom String("RARE FAVOURITE - 1 in {0} chance", Global.favouriteChance * (Custom String("{0}", Event Player) != Custom String("Zamasu") || Event Player.diceRoll != 102 ? 2 : 1)) : Custom String(
 			"Favourite chance - 1 in {0}", Global.favouriteChance)), Custom String(""), Top, 2, Event Player.perkColour, Event Player.diceRoll != 0
 			&& Array Contains(Global.bannedFav, Event Player.diceRoll) ? Color(Orange) : Color(White), Color(White),
 			Visible To Sort Order String and Color, Default Visibility);
@@ -326,7 +326,7 @@ rule("Repick Favourite Perk")
 		"the line under the perk name shows its favourite chance, rare favourites in orange"
 		Create HUD Text(Event Player, Custom String("({2}/{1}) {0}", Event Player.perkName, Global.perkTotal, Event Player.diceRoll),
 			Event Player.diceRoll == 0 ? Custom String("Every perk has an equal chance") : (Array Contains(Global.bannedFav,
-			Event Player.diceRoll) ? Custom String("RARE FAVOURITE - 1 in {0} chance", Global.favouriteChance * (Custom String("{0}", Event Player) != Custom String("Zamasu") ? 2 : 1)) : Custom String(
+			Event Player.diceRoll) ? Custom String("RARE FAVOURITE - 1 in {0} chance", Global.favouriteChance * (Custom String("{0}", Event Player) != Custom String("Zamasu") || Event Player.diceRoll != 102 ? 2 : 1)) : Custom String(
 			"Favourite chance - 1 in {0}", Global.favouriteChance)), Custom String(""), Top, 2, Event Player.perkColour, Event Player.diceRoll != 0
 			&& Array Contains(Global.bannedFav, Event Player.diceRoll) ? Color(Orange) : Color(White), Color(White),
 			Visible To Sort Order String and Color, Default Visibility);
@@ -626,9 +626,10 @@ rule("Roll The Dice")
 		End;
 		"If the player has a favourite perk selected, roll the favourite chance"
 		If(Event Player.favouritePerkRoll != 0);
-			"rare favourites are half as likely, except for Zamasu (an easter egg for a friend)"
+			"rare favourites are half as likely, except Sorcerer's Jackpot for Zamasu (an easter egg for a friend)"
 			Event Player.favouriteChanceRoll = Random Integer(1, Global.favouriteChance * (Array Contains(Global.bannedFav,
-				Event Player.favouritePerkRoll) && Custom String("{0}", Event Player) != Custom String("Zamasu") ? 2 : 1));
+				Event Player.favouritePerkRoll) && (Custom String("{0}", Event Player) != Custom String("Zamasu") || Event Player.favouritePerkRoll
+				!= 102) ? 2 : 1));
 			"If the favourite chance succeeds, force the favourite perk"
 			If(Event Player.favouriteChanceRoll == 1);
 				Event Player.diceRoll = Event Player.favouritePerkRoll;
@@ -642,7 +643,7 @@ rule("Roll The Dice")
 		Else;
 			"If the player has no favourite perk selected, roll a normal random perk"
 			Event Player.diceRoll = Random Integer(1, Global.perkTotal);
-			disabled Event Player.diceRoll = 145;
+			disabled Event Player.diceRoll = 138;
 		End;
 		"announce the roll, after the perk's rule has set perkName"
 		Wait(0.016, Ignore Condition);
@@ -7329,14 +7330,35 @@ rule("138: Soul Link")
 		Event Player.perkName = Custom String("Soul Link");
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 10;
+		"G = linked player, H = beam"
 		Event Player.G = Random Value In Array(Filtered Array(All Living Players(All Teams), Current Array Element != Event Player));
-		Big Message(Event Player, Custom String("Soul Linked to: {0} {1}", Hero Icon String(Hero Of(Event Player.G)), Event Player.G));
-		Wait Until((Event Player.perkActivated == False || Is Dead(Event Player.G)) == True, 999999);
-		If(Is Dead(Event Player.G));
+		"only the two linked players are told who they are linked to"
+		Big Message(Event Player, Custom String("Soul linked to {0} {1}.", Hero Icon String(Hero Of(
+			Event Player.G)), Event Player.G));
+		Big Message(Event Player.G, Custom String("{0} {1} soul linked you.", Hero Icon String(
+			Hero Of(Event Player)), Event Player));
+		"everyone can see the link"
+		Create Beam Effect(All Players(All Teams), Good Beam, Event Player, Event Player.G, Color(Sky Blue), Visible To Position and Radius);
+		Event Player.H = Last Created Entity;
+		Wait Until(Event Player.perkActivated == False || Is Dead(Event Player.G) == True || Is Dead(Event Player) == True, 999999);
+		"the link is cut"
+		Destroy Effect(Event Player.H);
+		Event Player.H = 0;
+		If(Is Dead(Event Player.G) == True && Is Alive(Event Player) == True);
 			Kill(Event Player, Event Player.G);
+			Big Message(Event Player, Custom String("{0} {1} died.", Hero Icon String(Hero Of(Event Player.G)),
+				Event Player.G));
+		Else If(Is Dead(Event Player) == True && Is Alive(Event Player.G) == True);
+			Kill(Event Player.G, Event Player);
+			Big Message(Event Player.G, Custom String("{0} {1} died.", Hero Icon String(Hero Of(Event Player)),
+				Event Player));
+		End;
+		If(Event Player.perkActivated == True && Event Player.diceRoll == 138);
 			Event Player.perkDuration = 0;
 			Event Player.perkActivated = False;
 		End;
+		"messages read their values a moment later, so keep G until they have"
+		Wait(0.250, Ignore Condition);
 		Event Player.G = 0;
 	}
 }
@@ -7945,8 +7967,10 @@ rule("145: Spirit Bomb")
 		If(Event Player.perkActivated == True && Event Player.diceRoll == 145);
 			Event Player.perkDuration = 60;
 			Stop Chasing Player Variable(Event Player, perkDuration);
-			"the bomb slowly grows as it gathers energy"
+			"the bomb slowly grows as it gathers energy, and rises so its sparkles stay above the dummy"
 			Chase Player Variable Over Time(Event Player, L, 9, 60, Destination and Duration);
+			Chase Player Variable Over Time(Event Player, O, Eye Position(Event Player.H[4]) + Vector(0, 11.400, 0), 60,
+				Destination and Duration);
 		End;
 		"Resolve HUD"
 		Create Progress Bar HUD Text(Event Player, Event Player.G, Custom String("Resolve"), Top, 5, Color(Sky Blue), Color(White),
@@ -8200,7 +8224,8 @@ rule("145: Spirit Bomb")
 				+ Vector(0, 1.500, 0)), 2, Do Not Clip, Visible To Position and String, Color(White), Default Visibility);
 			Event Player.H[6] = Last Text ID;
 			"Throw Spirit Bomb"
-			Chase Player Variable Over Time(Event Player, O, Event Player.G, 1.500, Destination and Duration);
+			"the flight matches the 2.05s of waits below, so the bomb lands the moment it explodes"
+			Chase Player Variable Over Time(Event Player, O, Event Player.G, 2.050, Destination and Duration);
 			Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.O, 6);
 			Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Event Player.O, 200);
 			Wait(0.450, Ignore Condition);
@@ -9045,5 +9070,97 @@ rule("153: Devil's Bullet")
 		Event Player.I = 0;
 		Event Player.J = 0;
 		Event Player.K = 0;
+	}
+}
+
+rule("154: Psychokinesis")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 154;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Violet);
+		Event Player.perkName = Custom String("Psychokinesis");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 15;
+		"G = victim, H = victim's forced position, I = top of the lift"
+		Event Player.G = 0;
+		Big Message(Event Player, Custom String("Press Interact on an opponent at 50% health or less."));
+		"targeting, a miss does not use up the perk"
+		While(Event Player.G == 0 && Event Player.perkActivated == True && Event Player.diceRoll == 154);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 154 || (Is Button Held(Event Player, Button(Interact))
+				== True && Is Alive(Event Player) == True), 999999);
+			If(Event Player.perkActivated == True && Event Player.diceRoll == 154 && Is Button Held(Event Player, Button(Interact)) == True
+				&& Is Alive(Event Player) == True);
+				"the opponent closest to the crosshair, if alive, in sight and at 50% health or less"
+				Event Player.H = Player Closest To Reticle(Event Player, Opposite Team Of(Team Of(Event Player)));
+				If(Event Player.H != Null && Event Player.H != Event Player && Is Alive(Event Player.H) == True && Is In Line of Sight(
+					Eye Position(Event Player), Eye Position(Event Player.H), Barriers Do Not Block LOS) == True && Normalized Health(
+					Event Player.H) <= 0.500);
+					Event Player.G = Event Player.H;
+				End;
+				Event Player.H = 0;
+				"one attempt per press"
+				Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 154 || Is Button Held(Event Player, Button(Interact))
+					== False, 999999);
+			End;
+		End;
+		If(Event Player.G != 0);
+			"lift the victim 8m over 1.5 seconds, they cannot move, and the user is forced to watch"
+			Event Player.H = Position Of(Event Player.G);
+			Event Player.I = Event Player.H + Vector(0, 8, 0);
+			Start Forcing Player Position(Event Player.G, Event Player.H, True);
+			Chase Player Variable Over Time(Event Player, H, Event Player.I, 1.500, Destination and Duration);
+			Start Facing(Event Player, Update Every Frame(Direction Towards(Eye Position(Event Player), Eye Position(Event Player.G))), 10000,
+				To World, Direction and Turn Rate);
+			"stops early if the victim dies or leaves"
+			Wait Until(Is Alive(Event Player.G) == False, 1.500);
+			Stop Chasing Player Variable(Event Player, H);
+			"anticipation: held at the top while three growing pulses build up, I counts the pulses"
+			Event Player.I = 0;
+			While(Event Player.I < 3 && Is Alive(Event Player.G) == True);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(Orange), Eye Position(Event Player.G), 2 + Event Player.I * 1.500);
+				Play Effect(All Players(All Teams), Debuff Impact Sound, Color(White), Eye Position(Event Player.G), 150);
+				Wait Until(Is Alive(Event Player.G) == False, 0.350);
+				Event Player.I += 1;
+			End;
+			Wait Until(Is Alive(Event Player.G) == False, 0.250);
+			Stop Forcing Player Position(Event Player.G);
+			"explode: 99999 damage to every living player within 6m, the user included"
+			If(Is Alive(Event Player.G) == True);
+				Event Player.H = Eye Position(Event Player.G);
+				Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.H, 3);
+				Play Effect(All Players(All Teams), Bad Explosion, Color(Orange), Event Player.H, 6);
+				Play Effect(All Players(All Teams), Good Explosion, Color(Yellow), Event Player.H, 5);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(Orange), Event Player.H, 10);
+				Play Effect(All Players(All Teams), Ring Explosion, Color(White), Event Player.H, 14);
+				Play Effect(All Players(All Teams), Explosion Sound, Color(White), Event Player.H, 200);
+				Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Event Player.H, 200);
+				Play Effect(All Players(All Teams), Ring Explosion Sound, Color(White), Event Player.H, 200);
+				Damage(Filtered Array(Players Within Radius(Event Player.H, 6, All Teams, Off), Is Alive(Current Array Element) == True),
+					Event Player, 99999);
+				"keep the user looking at the blast for a moment"
+				Wait(0.500, Ignore Condition);
+			End;
+			Stop Facing(Event Player);
+			"one execution per roll"
+			If(Event Player.perkActivated == True && Event Player.diceRoll == 154);
+				Event Player.perkDuration = 0;
+				Event Player.perkActivated = False;
+			End;
+		End;
+		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.I = 0;
 	}
 }
