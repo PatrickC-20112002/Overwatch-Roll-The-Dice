@@ -66,7 +66,7 @@ rule("Global Setup: Favourite Perk, Perk Total, AD TEXT")
 		Global.favouriteChance = Workshop Setting Integer(Custom String("Favourite Perk"), Custom String("Favourite Roll Chance (1 in _ chance)"), 5, 1, 10, 0);
 		"rare favourite perks (half the normal favourite chance) and total number of perks"
 		Global.bannedFav = Array(64, 65, 86, 97, 102, 105, 46, 118, 134, 145, 151, 154);
-		Global.perkTotal = 154;
+		Global.perkTotal = 157;
 		"AD TEXT"
 		Create HUD Text(All Players(All Teams), Custom String("ROLL THE DICE {0} {1} {2}", Server Load, Server Load Average,
 			Server Load Peak), Null, Null, Left, 1, Color(Sky Blue), Null, Null, Visible To Sort Order String and Color,
@@ -1668,8 +1668,21 @@ rule("27: High Gravity")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 10;
 		Set Gravity(Event Player, 500);
-		Wait Until(Event Player.perkActivated == False, 999999);
+		Set Move Speed(Event Player, 65);
+		"hard landings: landing after a fast fall (more than about 2-3m) knocks you down and deals 25 damage"
+		While(Event Player.perkActivated == True && Event Player.diceRoll == 27);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 27 || (Is In Air(Event Player) == True && Vertical Speed Of(
+				Event Player) < -15), 999999);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 27 || Is On Ground(Event Player) == True, 999999);
+			If(Event Player.perkActivated == True && Event Player.diceRoll == 27 && Is On Ground(Event Player) == True && Is Alive(Event Player)
+				== True);
+				Set Status(Event Player, Null, Knocked Down, 1);
+				Damage(Event Player, Null, 25);
+				Play Effect(All Players(All Teams), Debuff Impact Sound, Color(White), Position Of(Event Player), 100);
+			End;
+		End;
 		Set Gravity(Event Player, 100);
+		Set Move Speed(Event Player, 100);
 	}
 }
 
@@ -1694,8 +1707,11 @@ rule("28: Frail")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 10;
 		Set Damage Received(Event Player, 175);
+		"as much knockback as the Workshop allows, values above the cap are clamped"
+		Set Knockback Received(Event Player, 1000);
 		Wait Until(Event Player.perkActivated == False, 999999);
 		Set Damage Received(Event Player, 100);
+		Set Knockback Received(Event Player, 100);
 	}
 }
 
@@ -2189,12 +2205,15 @@ rule("41: No Cooldowns")
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 10;
 		While(Event Player.perkActivated == True);
-			Set Ability Charge(Event Player, Button(Ability 1), 0);
+			"same method as One Trick: reset each cooldown and top up its charges"
 			Set Ability Cooldown(Event Player, Button(Ability 1), 0);
-			Set Ability Cooldown(Event Player, Button(Ability 2), 0);
-			Set Ability Cooldown(Event Player, Button(Secondary Fire), 0);
-			Set Ability Cooldown(Event Player, Button(Jump), 0);
 			Set Ability Charge(Event Player, Button(Ability 1), 1000);
+			Set Ability Cooldown(Event Player, Button(Ability 2), 0);
+			Set Ability Charge(Event Player, Button(Ability 2), 1000);
+			Set Ability Cooldown(Event Player, Button(Secondary Fire), 0);
+			Set Ability Charge(Event Player, Button(Secondary Fire), 1000);
+			Set Ability Cooldown(Event Player, Button(Jump), 0);
+			Set Ability Charge(Event Player, Button(Jump), 1000);
 			Wait(0.050, Ignore Condition);
 		End;
 	}
@@ -6836,9 +6855,22 @@ rule("131: Grounded")
 		Event Player.perkName = Custom String("Grounded");
 		Abort If(Event Player.isSelectingFavourite == True);
 		Event Player.perkDuration = 10;
-		Set Jump Enabled(Event Player, False);
-		Wait Until(Event Player.perkActivated == False, 9999);
-		Set Jump Enabled(Event Player, True);
+		disabled Set Jump Enabled(Event Player, False);
+		disabled Wait Until(Event Player.perkActivated == False, 9999);
+		disabled Set Jump Enabled(Event Player, True);
+		"TEST: instead of disabling jump, slam the player back down whenever they leave the ground (restore the disabled lines above to revert)"
+		While(Event Player.perkActivated == True && Event Player.diceRoll == 131);
+			Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 131 || (Is In Air(Event Player) == True && Is Alive(
+				Event Player) == True), 999999);
+			"while airborne, push down at full speed, again only if something stops the fall"
+			While(Event Player.perkActivated == True && Event Player.diceRoll == 131 && Is In Air(Event Player) == True && Is Alive(
+				Event Player) == True);
+				If(Vertical Speed Of(Event Player) > -20);
+					Apply Impulse(Event Player, Down, 100, To World, Cancel Contrary Motion);
+				End;
+				Wait(0.100, Ignore Condition);
+			End;
+		End;
 	}
 }
 
@@ -9162,5 +9194,181 @@ rule("154: Psychokinesis")
 		Event Player.G = 0;
 		Event Player.H = 0;
 		Event Player.I = 0;
+	}
+}
+
+rule("155: One Trick")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 155;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Lime Green);
+		Event Player.perkName = Custom String("One Trick");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 10;
+		"G = the one ability left: 1 secondary fire, 2 ability 1, 3 ability 2. primary fire stays"
+		Event Player.G = Random Integer(1, 3);
+		Set Secondary Fire Enabled(Event Player, Event Player.G == 1);
+		Set Ability 1 Enabled(Event Player, Event Player.G == 2);
+		Set Ability 2 Enabled(Event Player, Event Player.G == 3);
+		"disallow rather than disable, so ultimate charge is kept"
+		Disallow Button(Event Player, Button(Ultimate));
+		Big Message(Event Player, Event Player.G == 1 ? Custom String("Only Secondary Fire works, with no cooldown!") : (Event Player.G == 2
+			? Custom String("Only Ability 1 works, with no cooldown!") : Custom String("Only Ability 2 works, with no cooldown!")));
+		"no cooldown on the chosen ability"
+		While(Event Player.perkActivated == True && Event Player.diceRoll == 155);
+			Set Ability Cooldown(Event Player, Event Player.G == 1 ? Button(Secondary Fire) : (Event Player.G == 2 ? Button(Ability 1) : Button(Ability 2)), 0);
+			Set Ability Charge(Event Player, Event Player.G == 1 ? Button(Secondary Fire) : (Event Player.G == 2 ? Button(Ability 1) : Button(Ability 2)), 1000);
+			Wait(0.050, Ignore Condition);
+		End;
+		Set Secondary Fire Enabled(Event Player, True);
+		Set Ability 1 Enabled(Event Player, True);
+		Set Ability 2 Enabled(Event Player, True);
+		Allow Button(Event Player, Button(Ultimate));
+		Event Player.G = 0;
+	}
+}
+
+rule("156: Poisoned")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 156;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Custom Color(110, 170, 30, 255);
+		Event Player.perkName = Custom String("Poisoned");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 20;
+		Big Message(Event Player, Custom String("Poisoned! Each health pack has a 1 in 10 chance to cure you."));
+		"mild poison damage so you are never at full health and can always pick up a health pack. G = its ID"
+		Start Damage Over Time(Event Player, Null, 9999, 5);
+		Event Player.G = Last Damage Over Time ID;
+		"running out is caught with 0.1s left, so a cure or interruption is not mistaken for the poison finishing"
+		Wait Until(Event Player.perkActivated == False || Event Player.perkDuration <= 0.100, 999999);
+		Stop Damage Over Time(Event Player.G);
+		Event Player.G = 0;
+		If(Event Player.perkActivated == True && Event Player.diceRoll == 156);
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+			If(Is Alive(Event Player) == True);
+				Big Message(Event Player, Custom String("The poison got you."));
+				Kill(Event Player, Null);
+			End;
+		End;
+	}
+}
+
+rule("156: Poisoned Health Pack")
+{
+	event
+	{
+		Player Received Healing;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 156;
+		Event Player.perkActivated == True;
+		Event Was Health Pack == True;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		"1 in 10 chance the health pack cures the poison"
+		If(Random Integer(1, 10) == 1);
+			Big Message(Event Player, Custom String("Cured!"));
+			Play Effect(Event Player, Buff Explosion Sound, Color(White), Position Of(Event Player), 100);
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+		Else;
+			Small Message(Event Player, Custom String("The health pack didn't cure the poison."));
+		End;
+	}
+}
+
+rule("157: Alien Invasion")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 157;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Lime Green);
+		Event Player.perkName = Custom String("Alien Invasion");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 15;
+		"G = invaded players, H = their original heroes, I = their original ultimate charge, K = loop index"
+		"skips dummy bots and anyone whose own perk already forces their hero"
+		Event Player.G = Filtered Array(All Players(All Teams), Is Dummy Bot(Current Array Element) == False && Array Contains(Array(44, 46,
+			47, 81, 119, 146), Current Array Element.diceRoll) == False);
+		Event Player.H = Mapped Array(Event Player.G, Hero Of(Current Array Element));
+		Event Player.I = Mapped Array(Event Player.G, Ultimate Charge Percent(Current Array Element));
+		Big Message(All Players(All Teams), Custom String("{0} {1} started an Alien Invasion!", Hero Icon String(Hero Of(Event Player)),
+			Event Player));
+		Start Forcing Player To Be Hero(Event Player.G, Hero(Juno));
+		"every invader gets their own random size, picked once (re-evaluating it re-rolled the size every frame)"
+		For Player Variable(Event Player, K, 0, Count Of(Event Player.G), 1);
+			Start Scaling Player(Event Player.G[Event Player.K], Random Real(0.500, 1.750), False);
+		End;
+		"infinite ultimates and no cooldowns, same method as No Cooldowns"
+		While(Event Player.perkActivated == True);
+			Set Ultimate Charge(Event Player.G, 100);
+			Set Ability Cooldown(Event Player.G, Button(Ability 1), 0);
+			Set Ability Charge(Event Player.G, Button(Ability 1), 1000);
+			Set Ability Cooldown(Event Player.G, Button(Ability 2), 0);
+			Set Ability Charge(Event Player.G, Button(Ability 2), 1000);
+			Set Ability Cooldown(Event Player.G, Button(Secondary Fire), 0);
+			Set Ability Charge(Event Player.G, Button(Secondary Fire), 1000);
+			Set Ability Cooldown(Event Player.G, Button(Jump), 0);
+			Set Ability Charge(Event Player.G, Button(Jump), 1000);
+			Wait(0.100, Ignore Condition);
+		End;
+		"restore everyone's original size, hero, then their original ultimate charge"
+		Stop Scaling Player(Event Player.G);
+		For Player Variable(Event Player, K, 0, Count Of(Event Player.G), 1);
+			Start Forcing Player To Be Hero(Event Player.G[Event Player.K], Event Player.H[Event Player.K]);
+			Stop Forcing Player To Be Hero(Event Player.G[Event Player.K]);
+		End;
+		Wait(0.500, Ignore Condition);
+		For Player Variable(Event Player, K, 0, Count Of(Event Player.G), 1);
+			Set Ultimate Charge(Event Player.G[Event Player.K], Event Player.I[Event Player.K]);
+		End;
+		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.I = 0;
+		Event Player.K = 0;
 	}
 }
