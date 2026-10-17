@@ -636,6 +636,19 @@ rule("Roll The Dice")
 			Event Player.diceRoll = Random Integer(1, Global.perkTotal);
 			disabled Event Player.diceRoll = 149;
 		End;
+		"announce the roll, after the perk's rule has set perkName"
+		Wait(0.016, Ignore Condition);
+		If(Current Game Mode == Game Mode(Deathmatch));
+			Small Message(Event Player, Custom String("{0}{1} rolled {2}", Hero Icon String(Hero Of(Event Player)), Event Player,
+				Event Player.perkName));
+			Small Message(Filtered Array(All Players(All Teams), Current Array Element != Event Player), Custom String(
+				"{0}{1} rolled the dice.", Hero Icon String(Hero Of(Event Player)), Event Player, Event Player.perkName));
+		Else;
+			Small Message(All Players(Team Of(Event Player)), Custom String("{0}{1} rolled {2}", Hero Icon String(Hero Of(Event Player)),
+				Event Player, Event Player.perkName));
+			Small Message(All Players(Opposite Team Of(Team Of(Event Player))), Custom String("{0}{1} rolled a perk.", Hero Icon String(
+				Hero Of(Event Player)), Event Player, Event Player.perkName));
+		End;
 	}
 }
 
@@ -8744,7 +8757,7 @@ rule("152: Soul Punisher")
 			Event Player.M = Total Time Elapsed + 6;
 			Event Player.N = Event Player.G;
 			While(Total Time Elapsed < Event Player.M && Distance Between(Event Player.G, Event Player.L) > 0.500 && Is In Line of Sight(
-				Event Player.N, Event Player.G, Enemy Barriers Block LOS) == True && Is True For Any(Players Within Radius(Event Player.G, 1,
+				Event Player.N, Event Player.G, Enemy Barriers Block LOS) == True && Is True For Any(Players Within Radius(Event Player.G, 2,
 				Opposite Team Of(Team Of(Event Player)), Off), Current Array Element != Event Player && Is Alive(Current Array Element)
 				== True) == False);
 				Play Effect(All Players(All Teams), Good Pickup Effect, Color(Aqua), Event Player.G, 0.500);
@@ -8756,7 +8769,7 @@ rule("152: Soul Punisher")
 			If(Is In Line of Sight(Event Player.N, Event Player.G, Enemy Barriers Block LOS) == False);
 				Event Player.G = Event Player.N;
 			End;
-			"explosion: flash, colour bursts and shockwaves while the orb swells to 9m and fades"
+			"explosion: flash, colour bursts and shockwaves while the orb swells and fades"
 			Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.G, 3);
 			Play Effect(All Players(All Teams), Good Explosion, Color(Turquoise), Event Player.G, 6);
 			Play Effect(All Players(All Teams), Good Explosion, Color(Purple), Event Player.G, 8);
@@ -8765,16 +8778,16 @@ rule("152: Soul Punisher")
 			Play Effect(All Players(All Teams), Ring Explosion, Color(Violet), Event Player.G, 20);
 			Play Effect(All Players(All Teams), Explosion Sound, Color(White), Event Player.G, 200);
 			Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Event Player.G, 200);
-			Chase Player Variable Over Time(Event Player, H, 9, 0.300, Destination and Duration);
+			Chase Player Variable Over Time(Event Player, H, 12, 0.300, Destination and Duration);
 			Wait(0.300, Ignore Condition);
 			"at full size, damage every opponent inside the rainbow sphere, each by their own hidden final blows"
 			Event Player.J = Filtered Array(Players Within Radius(Event Player.G, Event Player.H * 0.700, Opposite Team Of(Team Of(
 				Event Player)), Surfaces And All Barriers), Current Array Element != Event Player && Is Alive(Current Array Element) == True);
 			Chase Player Variable Over Time(Event Player, H, 0, 0.600, Destination and Duration);
 			For Player Variable(Event Player, M, 0, Count Of(Event Player.J), 1);
-				Damage(Event Player.J[Event Player.M], Event Player, 50 + Event Player.J[Event Player.M].soulScore * 25);
+				Damage(Event Player.J[Event Player.M], Event Player, 100 + Event Player.J[Event Player.M].soulScore * 25);
 				Small Message(Event Player, Custom String("Soul Punisher hit {0} for {1}", Event Player.J[Event Player.M],
-					50 + Event Player.J[Event Player.M].soulScore * 25));
+					100 + Event Player.J[Event Player.M].soulScore * 25));
 				"messages read their values a moment later, so hold M on this player until it has"
 				Wait(0.100, Ignore Condition);
 			End;
