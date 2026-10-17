@@ -11,16 +11,14 @@ Inspired by the *Team Fortress 2* Roll the Dice server plugin, RTD combines unpr
 | **Stable Version** | **V2.5** |
 | **Available Perks** | **157** |
 | **Game Mode** | **Deathmatch / Free-For-All (FFA)** |
-| **V2.5 Workshop Import Code** | **`REPLACE_WITH_V2_5_CODE`** |
-| **Previous Version** | V2.4 (`4C92C`) |
-
-> **Release setup:** Replace `REPLACE_WITH_V2_5_CODE` with the published V2.5 Overwatch Workshop code before releasing this README. `4C92C` is the previous V2.4 code, **not** a verified V2.5 code.
+| **Workshop Import Code** | **`4C92C`** |
+| **Previous Version** | V2.4 |
 
 ## How to Play
 
 1. Open **Overwatch** and create a **Custom Game**.
 2. Open the Custom Game settings and select **Import Code**.
-3. Enter the **V2.5 Workshop Import Code** shown above, once published.
+3. Enter the Workshop code **`4C92C`**.
 4. Start a Deathmatch match.
 5. Press **Interact** to roll the dice.
 6. Play with your random perk until it expires or ends. After the Dice Cooldown, you can roll again.
@@ -96,7 +94,7 @@ For release history, see [`CHANGELOG.md`](CHANGELOG.md). Issues and unexpected p
 ## Previous Releases
 
 - **V2.5:** Current release, 157 perks. See the [V2.5 changelog](CHANGELOG.md#v25).
-- **V2.4:** 145 perks, Workshop code `4C92C`. See the [V2.4 changelog](CHANGELOG.md#v24).
+- **V2.4:** 145 perks. The Workshop code `4C92C` now imports V2.5. See the [V2.4 changelog](CHANGELOG.md#v24).
 - **V2.3.0**, **V2.2.7** and **V2.2.6:** Preserved in repository history.
 - Legacy and Celebration Edition versions are also preserved in Git history.
 
