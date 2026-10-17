@@ -27,6 +27,7 @@ variables
 		21: stolenDiceName
 		22: stolenDiceRoll
 		23: stolenPlr
+		24: soulScore
 		25: perkDescription
 		26: isSelectingFavourite
 		27: favouritePerkRoll
@@ -79,7 +80,7 @@ rule("Banned Favourite Perks + Total Number of Perks")
 	actions
 	{
 		Global.bannedFav = Array(64, 65, 86, 97, 102, 105, 46, 118, 134, 145);
-		Global.perkTotal = 150;
+		Global.perkTotal = 152;
 	}
 }
 
@@ -532,6 +533,11 @@ rule("AD TEXT")
 			Visible To Sort Order String and Color, Default Visibility);
 		Create HUD Text(All Players(All Teams), Null, Null, Custom String("V2.5"), Left, 6, Null, Null, Color(Aqua),
 			Visible To Sort Order String and Color, Default Visibility);
+		"each viewer sees their own hidden final blow count"
+		Create HUD Text(All Players(All Teams), Null, Null, Custom String("FINAL BLOWS"), Left, 7, Null, Null, Color(White),
+			Visible To Sort Order String and Color, Default Visibility);
+		Create HUD Text(All Players(All Teams), Null, Null, Custom String("{0}", Local Player.soulScore), Left, 8, Null, Null, Color(Red),
+			Visible To Sort Order String and Color, Default Visibility);
 		disabled Create HUD Text(All Players(All Teams), Null, Null, Custom String("CURRENT EXPERIMENT"), Left, 7, Null, Null, Color(White),
 			Visible To Sort Order String and Color, Default Visibility);
 		disabled Create HUD Text(All Players(All Teams), Null, Null, Custom String("Higher Fav Perk chance"), Left, 8, Null, Null, Color(Gray),
@@ -587,6 +593,27 @@ rule("Final Blows lower Dice Cooldown")
 		If(Event Player.diceCooldown < 0);
 			Event Player.diceCooldown = 0;
 		End;
+	}
+}
+
+rule("Track Soul Score")
+{
+	event
+	{
+		Player Dealt Final Blow;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Victim != Event Player;
+	}
+
+	actions
+	{
+		"hidden final blow count, works before the match starts when the real score does not"
+		Event Player.soulScore += 1;
 	}
 }
 
@@ -4857,8 +4884,10 @@ rule("93: Stole the Dice")
 		Event Player.diceRoll = Event Player.stolenDiceRoll;
 		Wait(0.016, Ignore Condition);
 		"only end the victim's perk if they still have the stolen one"
-		Filtered Array(Event Player.stolenPlr, Current Array Element.diceRoll == Event Player.stolenDiceRoll).perkDuration = 0;
-		Filtered Array(Event Player.stolenPlr, Current Array Element.diceRoll == Event Player.stolenDiceRoll).perkActivated = False;
+		If(Event Player.stolenPlr.diceRoll == Event Player.stolenDiceRoll);
+			Event Player.stolenPlr.perkDuration = 0;
+			Event Player.stolenPlr.perkActivated = False;
+		End;
 		Event Player.stolenPlr = 0;
 		Event Player.stolenDiceRoll = 0;
 		Event Player.stolenDiceName = 0;
@@ -8610,7 +8639,7 @@ rule("149: Weeping Angel")
 		Event Player.perkColour = Custom Color(160, 160, 160, 255);
 		Event Player.perkName = Custom String("Weeping Angel");
 		Abort If(Event Player.isSelectingFavourite == True);
-		Event Player.perkDuration = 12;
+		Event Player.perkDuration = 15;
 		"godmode"
 		Set Status(Event Player, Null, Invincible, 9999);
 		Set Knockback Received(Event Player, 0);
@@ -8744,5 +8773,296 @@ rule("150: Earthquake")
 				Cancel Contrary Motion);
 			Wait(0.100, Ignore Condition);
 		End;
+	}
+}
+
+rule("151: Hot Potato")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 151;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Color(Orange);
+		Event Player.perkName = Custom String("Hot Potato");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 10;
+		"passed flag, set by the melee rule when the potato is handed on"
+		Event Player.G = False;
+		Big Message(Event Player, Custom String("Hot Potato! Quick melee someone to pass it on!"));
+		"also wake if a roll replaces the potato before it ends"
+		Wait Until(Event Player.perkActivated == False || Event Player.diceRoll != 151, 999999);
+		"kill whoever is still holding the potato when it ends"
+		If(Event Player.G == False && Event Player.perkActivated == False);
+			Big Message(All Players(All Teams), Custom String("{0} {1} got burned by the Hot Potato!", Hero Icon String(Hero Of(
+				Event Player)), Event Player));
+			Kill(Event Player, Null);
+		End;
+		Event Player.G = 0;
+	}
+}
+
+rule("151: Hot Potato Pass")
+{
+	event
+	{
+		Player Dealt Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 151;
+		Event Player.perkActivated == True;
+		((Hero Of(Event Player) == Hero(Brigitte) && Event Ability == Button(Primary Fire)) || (Hero Of(Event Player) == Hero(Reinhardt)
+			&& Event Ability == Button(Primary Fire)) || (Hero Of(Event Player) == Hero(Vendetta) && Event Ability == Button(Primary Fire))
+			|| (Hero Of(Event Player) == Hero(Doomfist) && Event Ability == Button(Secondary Fire)) || (Hero Of(Event Player) == Hero(
+			Hazard) && Event Ability == Button(Ability 1)) || (Hero Of(Event Player) == Hero(Ramattra) && (Event Ability == Button(
+			Ability 1) || Event Ability == Button(Ultimate)) && Event Damage >= 50) || (Hero Of(Event Player) == Hero(Torbjörn)
+			&& Event Ability == Button(Primary Fire) && Is In Alternate Form(Event Player) == True) || (Hero Of(Event Player) == Hero(
+			Venture) && Event Ability == Button(Secondary Fire)) || Event Ability == Button(Melee)) == True;
+		Victim != Event Player;
+		Is Alive(Victim) == True;
+		Victim.diceRoll != 151;
+	}
+
+	actions
+	{
+		Abort If(Event Player.isSelectingFavourite == True);
+		Abort If(Victim.isSelectingFavourite == True);
+		"hand over the remaining time and release the potato without killing the passer"
+		Event Player.H = Event Player.perkDuration;
+		Event Player.G = True;
+		Event Player.perkDuration = 0;
+		Event Player.perkActivated = False;
+		"end the victim's active perk first so its normal cleanup runs"
+		If(Victim.perkActivated == True);
+			Victim.perkDuration = 0;
+			Victim.perkActivated = False;
+		End;
+		Wait(0.100, Ignore Condition);
+		Abort If(Is Alive(Victim) == False);
+		Victim.perkActivated = True;
+		Victim.diceRoll = 151;
+		"let the victim's potato rule set its 10 seconds, then replace it with the passed time"
+		Wait(0.016, Ignore Condition);
+		Victim.perkDuration = Event Player.H;
+		Big Message(Victim, Custom String("{0} passed you the Hot Potato!", Event Player));
+		Event Player.H = 0;
+	}
+}
+
+rule("152: Soul Punisher")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.diceRoll == 152;
+	}
+
+	actions
+	{
+		Event Player.perkColour = Custom Color(190, 215, 255, 255);
+		Event Player.perkName = Custom String("Soul Punisher");
+		Abort If(Event Player.isSelectingFavourite == True);
+		Event Player.perkDuration = 15;
+		Big Message(Event Player, Custom String("Press Interact to fire the Soul Punisher"));
+		Wait Until((Is Alive(Event Player) == True && Is Button Held(Event Player, Button(Interact)) == True) || (
+			Event Player.perkActivated == False), 999999);
+		Abort If(Event Player.perkActivated == False);
+		"G = orb position, H = orb size, I = effect IDs, J = target, L = straight-line end, M = counter then lifetime, N = last orb position"
+		Event Player.G = Eye Position(Event Player) + Facing Direction Of(Event Player) * 0.800 - Vector(0, 0.250, 0);
+		Event Player.H = 0.200;
+		"keep the orb in front of the chest until launch"
+		Chase Player Variable At Rate(Event Player, G, Eye Position(Event Player) + Facing Direction Of(Event Player) * 0.800 - Vector(0,
+			0.250, 0), 100, Destination and Rate);
+		"white core, shimmering rainbow layer and star sparkles"
+		Event Player.I = Empty Array;
+		Create Effect(All Players(All Teams), Sphere, Color(White), Update Every Frame(Event Player.G), Event Player.H * 0.400,
+			Visible To Position Radius and Color);
+		Modify Player Variable(Event Player, I, Append To Array, Last Created Entity);
+		Create Effect(All Players(All Teams), Sphere, Custom Color(170 + 85 * Sine From Degrees(Total Time Elapsed * 720), 170 + 85 * Sine From Degrees(
+			Total Time Elapsed * 720 + 120), 170 + 85 * Sine From Degrees(Total Time Elapsed * 720 + 240), 255), Update Every Frame(
+			Event Player.G), Event Player.H * 0.700, Visible To Position Radius and Color);
+		Modify Player Variable(Event Player, I, Append To Array, Last Created Entity);
+		Create Effect(All Players(All Teams), Sparkles, Color(White), Update Every Frame(Event Player.G), Event Player.H,
+			Visible To Position Radius and Color);
+		Modify Player Variable(Event Player, I, Append To Array, Last Created Entity);
+		"charge: grow over 0.8s with four pulses"
+		Chase Player Variable Over Time(Event Player, H, 1, 0.800, Destination and Duration);
+		Event Player.M = 0;
+		While(Event Player.M < 4 && Event Player.perkActivated == True && Event Player.diceRoll == 152 && Is Alive(Event Player) == True);
+			Play Effect(All Players(All Teams), Ring Explosion, Color(Aqua), Event Player.G, 1 + Event Player.M * 0.400);
+			Play Effect(All Players(All Teams), Buff Impact Sound, Color(White), Event Player.G, 40);
+			Wait(0.200, Ignore Condition);
+			Event Player.M += 1;
+		End;
+		If(Event Player.perkActivated == True && Event Player.diceRoll == 152 && Is Alive(Event Player) == True);
+			"launch at the opponent closest to the crosshair, or straight ahead to the first wall"
+			Event Player.J = Player Closest To Reticle(Event Player, Opposite Team Of(Team Of(Event Player)));
+			Event Player.L = Ray Cast Hit Position(Event Player.G, Event Player.G + Facing Direction Of(Event Player) * 240, Null,
+				Event Player, False);
+			Small Message(Event Player, Custom String("Soul Punisher fired at {0} for {1}", Event Player.J, 50 + Event Player.J.soulScore * 25));
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+			Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Event Player.G, 200);
+			Chase Player Variable At Rate(Event Player, G, Event Player.J != Null ? Position Of(Event Player.J) + Vector(0, 1, 0)
+				: Event Player.L, 40, Destination and Rate);
+			"fly until it reaches the target or end point, hits a wall or barrier, or 6 seconds pass"
+			Event Player.M = Total Time Elapsed + 6;
+			Event Player.N = Event Player.G;
+			While(Total Time Elapsed < Event Player.M && Distance Between(Event Player.G, Event Player.J != Null ? Position Of(
+				Event Player.J) + Vector(0, 1, 0) : Event Player.L) > 1 && Is In Line of Sight(Event Player.N, Event Player.G,
+				Enemy Barriers Block LOS) == True);
+				Play Effect(All Players(All Teams), Good Pickup Effect, Color(Aqua), Event Player.G, 0.500);
+				Event Player.N = Event Player.G;
+				Wait(0.050, Ignore Condition);
+			End;
+			Stop Chasing Player Variable(Event Player, G);
+			"damage is applied here because projectile damage sometimes fails on full-health targets"
+			If(Event Player.J != Null && Is Alive(Event Player.J) == True && Distance Between(Event Player.G, Position Of(Event Player.J)
+				+ Vector(0, 1, 0)) <= 1.500);
+				Damage(Event Player.J, Event Player, 50 + Event Player.J.soulScore * 25);
+			End;
+			"explosion: flash, colour bursts and shockwaves while the orb swells to 9m and fades"
+			Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.G, 3);
+			Play Effect(All Players(All Teams), Good Explosion, Color(Turquoise), Event Player.G, 6);
+			Play Effect(All Players(All Teams), Good Explosion, Color(Purple), Event Player.G, 8);
+			Play Effect(All Players(All Teams), Good Explosion, Color(Yellow), Event Player.G, 5);
+			Play Effect(All Players(All Teams), Ring Explosion, Color(White), Event Player.G, 14);
+			Play Effect(All Players(All Teams), Ring Explosion, Color(Violet), Event Player.G, 20);
+			Play Effect(All Players(All Teams), Explosion Sound, Color(White), Event Player.G, 200);
+			Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Event Player.G, 200);
+			Chase Player Variable Over Time(Event Player, H, 9, 0.300, Destination and Duration);
+			Wait(0.300, Ignore Condition);
+			Chase Player Variable Over Time(Event Player, H, 0, 0.600, Destination and Duration);
+			Wait(0.600, Ignore Condition);
+		Else If(Event Player.diceRoll == 152);
+			"charge interrupted by death: end the perk"
+			Event Player.perkDuration = 0;
+			Event Player.perkActivated = False;
+		End;
+		"cleanup"
+		Stop Chasing Player Variable(Event Player, G);
+		Stop Chasing Player Variable(Event Player, H);
+		Destroy Effect(Event Player.I[0]);
+		Destroy Effect(Event Player.I[1]);
+		Destroy Effect(Event Player.I[2]);
+		Event Player.G = 0;
+		Event Player.H = 0;
+		Event Player.I = 0;
+		Event Player.J = 0;
+		Event Player.L = 0;
+		Event Player.M = 0;
+		Event Player.N = 0;
+	}
+}
+
+rule("TEST: Reload + Jump spawns a dummy (delete after testing)")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Is Dummy Bot(Event Player) == False;
+		Is Button Held(Event Player, Button(Reload)) == True;
+		Is Button Held(Event Player, Button(Jump)) == True;
+	}
+
+	actions
+	{
+		Create Dummy Bot(Hero(Roadhog), Opposite Team Of(Team Of(Event Player)), -1, Position Of(Event Player) + Facing Direction Of(
+			Event Player) * 8, Vector(0, 0, 0));
+	}
+}
+
+rule("TEST: Reload + Crouch gives you Soul Punisher (delete after testing)")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Is Dummy Bot(Event Player) == False;
+		Is Button Held(Event Player, Button(Reload)) == True;
+		Is Button Held(Event Player, Button(Crouch)) == True;
+		Event Player.perkActivated == False;
+	}
+
+	actions
+	{
+		Event Player.perkActivated = True;
+		Event Player.diceRoll = 152;
+	}
+}
+
+rule("TEST: Reload + Melee adds 5 soul score to dummies (delete after testing)")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Is Dummy Bot(Event Player) == False;
+		Is Button Held(Event Player, Button(Reload)) == True;
+		Is Button Held(Event Player, Button(Melee)) == True;
+	}
+
+	actions
+	{
+		Filtered Array(All Players(All Teams), Is Dummy Bot(Current Array Element) == True).soulScore += 5;
+		Small Message(Event Player, Custom String("Dummy soul score: {0}", First Of(Filtered Array(All Players(All Teams), Is Dummy Bot(
+			Current Array Element) == True)).soulScore));
+	}
+}
+
+rule("TEST: Reload + Ultimate removes dummies (delete after testing)")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Is Dummy Bot(Event Player) == False;
+		Is Button Held(Event Player, Button(Reload)) == True;
+		Is Button Held(Event Player, Button(Ultimate)) == True;
+	}
+
+	actions
+	{
+		Destroy All Dummy Bots;
 	}
 }
