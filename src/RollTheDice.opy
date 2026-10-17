@@ -8886,7 +8886,7 @@ rule("152: Soul Punisher")
 		Wait Until((Is Alive(Event Player) == True && Is Button Held(Event Player, Button(Interact)) == True) || (
 			Event Player.perkActivated == False), 999999);
 		Abort If(Event Player.perkActivated == False);
-		"G = orb position, H = orb size, I = effect IDs, J = target, L = straight-line end, M = counter then lifetime, N = last orb position"
+		"G = orb position, H = orb size, I = effect IDs, J = players caught in the explosion, L = end point, M = counter, N = last orb position"
 		Event Player.G = Eye Position(Event Player) + Facing Direction Of(Event Player) * 0.800 - Vector(0, 0.250, 0);
 		Event Player.H = 0.200;
 		"keep the orb in front of the chest until launch"
@@ -8914,31 +8914,28 @@ rule("152: Soul Punisher")
 			Event Player.M += 1;
 		End;
 		If(Event Player.perkActivated == True && Event Player.diceRoll == 152 && Is Alive(Event Player) == True);
-			"launch at the opponent closest to the crosshair, or straight ahead to the first wall"
-			Event Player.J = Player Closest To Reticle(Event Player, Opposite Team Of(Team Of(Event Player)));
+			"fire straight where the player is looking, ending at the first wall"
 			Event Player.L = Ray Cast Hit Position(Event Player.G, Event Player.G + Facing Direction Of(Event Player) * 240, Null,
 				Event Player, False);
-			Small Message(Event Player, Custom String("Soul Punisher fired at {0} for {1}", Event Player.J, 50 + Event Player.J.soulScore * 25));
 			Event Player.perkDuration = 0;
 			Event Player.perkActivated = False;
 			Play Effect(All Players(All Teams), Buff Explosion Sound, Color(White), Event Player.G, 200);
-			Chase Player Variable At Rate(Event Player, G, Event Player.J != Null ? Position Of(Event Player.J) + Vector(0, 1, 0)
-				: Event Player.L, 40, Destination and Rate);
-			"fly until it reaches the target or end point, hits a wall or barrier, or 6 seconds pass"
+			Chase Player Variable At Rate(Event Player, G, Event Player.L, 40, Destination and Rate);
+			"fly until it touches an opponent, reaches the wall, hits a barrier, or 6 seconds pass"
 			Event Player.M = Total Time Elapsed + 6;
 			Event Player.N = Event Player.G;
-			While(Total Time Elapsed < Event Player.M && Distance Between(Event Player.G, Event Player.J != Null ? Position Of(
-				Event Player.J) + Vector(0, 1, 0) : Event Player.L) > 1 && Is In Line of Sight(Event Player.N, Event Player.G,
-				Enemy Barriers Block LOS) == True);
+			While(Total Time Elapsed < Event Player.M && Distance Between(Event Player.G, Event Player.L) > 0.500 && Is In Line of Sight(
+				Event Player.N, Event Player.G, Enemy Barriers Block LOS) == True && Is True For Any(Players Within Radius(Event Player.G, 1,
+				Opposite Team Of(Team Of(Event Player)), Off), Current Array Element != Event Player && Is Alive(Current Array Element)
+				== True) == False);
 				Play Effect(All Players(All Teams), Good Pickup Effect, Color(Aqua), Event Player.G, 0.500);
 				Event Player.N = Event Player.G;
 				Wait(0.050, Ignore Condition);
 			End;
 			Stop Chasing Player Variable(Event Player, G);
-			"damage is applied here because projectile damage sometimes fails on full-health targets"
-			If(Event Player.J != Null && Is Alive(Event Player.J) == True && Distance Between(Event Player.G, Position Of(Event Player.J)
-				+ Vector(0, 1, 0)) <= 1.500);
-				Damage(Event Player.J, Event Player, 50 + Event Player.J.soulScore * 25);
+			"stopped by a barrier: explode at the last clear point"
+			If(Is In Line of Sight(Event Player.N, Event Player.G, Enemy Barriers Block LOS) == False);
+				Event Player.G = Event Player.N;
 			End;
 			"explosion: flash, colour bursts and shockwaves while the orb swells to 9m and fades"
 			Play Effect(All Players(All Teams), Good Explosion, Color(White), Event Player.G, 3);
@@ -8951,7 +8948,17 @@ rule("152: Soul Punisher")
 			Play Effect(All Players(All Teams), Bastion Tank Cannon Explosion Sound, Color(White), Event Player.G, 200);
 			Chase Player Variable Over Time(Event Player, H, 9, 0.300, Destination and Duration);
 			Wait(0.300, Ignore Condition);
+			"at full size, damage every opponent inside the rainbow sphere, each by their own hidden final blows"
+			Event Player.J = Filtered Array(Players Within Radius(Event Player.G, Event Player.H * 0.700, Opposite Team Of(Team Of(
+				Event Player)), Surfaces And All Barriers), Current Array Element != Event Player && Is Alive(Current Array Element) == True);
 			Chase Player Variable Over Time(Event Player, H, 0, 0.600, Destination and Duration);
+			For Player Variable(Event Player, M, 0, Count Of(Event Player.J), 1);
+				Damage(Event Player.J[Event Player.M], Event Player, 50 + Event Player.J[Event Player.M].soulScore * 25);
+				Small Message(Event Player, Custom String("Soul Punisher hit {0} for {1}", Event Player.J[Event Player.M],
+					50 + Event Player.J[Event Player.M].soulScore * 25));
+				"messages read their values a moment later, so hold M on this player until it has"
+				Wait(0.100, Ignore Condition);
+			End;
 			Wait(0.600, Ignore Condition);
 		Else If(Event Player.diceRoll == 152);
 			"charge interrupted by death: end the perk"
