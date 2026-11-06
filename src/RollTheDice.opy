@@ -1,3 +1,119 @@
+settings
+{
+	main
+	{
+		Description: "This gamemode allows players to \"roll the dice\" for one of the many different and crazy effects. These effects can help or hinder your gameplay! It's all up to chance."
+		Mode Name: "Roll the Dice"
+	}
+
+	lobby
+	{
+		Allow Players Who Are In Queue: Yes
+		Map Rotation: After A Game
+		Match Voice Chat: Enabled
+		Max FFA Players: 6
+		Return To Lobby: After A Game
+		Team Balancing: After A Game
+	}
+
+	modes
+	{
+		disabled Assault
+		{
+			Tank Role Passive Health Bonus: Disabled
+		}
+
+		disabled Bounty Hunter
+		{
+			Tank Role Passive Health Bonus: Disabled
+		}
+
+		disabled Capture the Flag
+		{
+			Flag Dropped Lock Time: 5.0
+			Flag Return Time: 4.0
+			Flag Score Respawn Time: 15.0
+			Tank Role Passive Health Bonus: Disabled
+		}
+
+		disabled Control
+		{
+			Tank Role Passive Health Bonus: Disabled
+		}
+
+		Deathmatch
+		{
+			Enable Perks: On
+			Game Length In Minutes: 15
+			Perk Generation: 200%
+			Score To Win: 30
+			Tank Role Passive Health Bonus: Disabled
+
+			enabled maps
+			{
+				Ecopoint: Antarctica Winter 972777519512063901
+				Eichenwalde 972777519512095572
+				Ilios Lighthouse 972777519512063901
+				Ilios Well 972777519512063901
+				Lijiang Garden 972777519512063901
+				Nepal Sanctum 972777519512063901
+			}
+		}
+
+		disabled Escort
+		{
+			Tank Role Passive Health Bonus: Disabled
+		}
+
+		disabled Hybrid
+		{
+			Tank Role Passive Health Bonus: Disabled
+		}
+
+		disabled Mischief & Magic
+		{
+			Tank Role Passive Health Bonus: Disabled
+		}
+
+		disabled Practice Range
+		{
+			Tank Role Passive Health Bonus: Disabled
+		}
+
+		disabled Push
+		{
+			Tank Role Passive Health Bonus: Disabled
+		}
+
+		disabled Skirmish
+		{
+			Tank Role Passive Health Bonus: Disabled
+		}
+
+		disabled Team Deathmatch
+		{
+			Tank Role Passive Health Bonus: Disabled
+		}
+
+		General
+		{
+			Game Mode Start: Manual
+			Hero Limit: Off
+			Spawn Health Packs: Enabled
+		}
+	}
+
+	extensions
+	{
+		Beam Sounds
+		Buff Status Effects
+		Debuff Status Effects
+		Buff and Debuff Sounds
+		Explosion Sounds
+		Play More Effects
+	}
+}
+
 variables
 {
 	global:
@@ -35,7 +151,6 @@ variables
 		28: favouriteHudText
 		29: favouritePerkName
 		30: favouritePerkColour
-		31: rtdHudText
 		32: durationModifier
 		33: showHeroIconEsp
 		34: showPerkEsp
