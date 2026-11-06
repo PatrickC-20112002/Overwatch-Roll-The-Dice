@@ -62,6 +62,8 @@ Read the [full V2.5 patch notes](CHANGELOG.md#v25) for all gameplay changes and 
 
 Many other perks, including **GodMode**, **Noclip**, **One Punch Man**, **Black Flash** and **Cursed Swap**, are also part of RTD.
 
+See [PERKS.md](PERKS.md) for the full list of all 157 perks.
+
 ## Favourite Perks
 
 Players can select a Favourite Perk before entering the match and may change it through the Favourite Perk interface.
